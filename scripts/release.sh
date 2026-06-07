@@ -27,7 +27,8 @@ CASK_PATH="Casks/${CASK_TOKEN}.rb"
 DIST_ZIP="$REPO_ROOT/build/$APP_NAME.zip"
 
 # ===== バージョン計算 =====
-CURRENT_VERSION="$(grep 'MARKETING_VERSION:' project.yml | head -1 | sed 's/.*MARKETING_VERSION: *//' | tr -d '"' | tr -d ' ')"
+# grep -m1 で先頭マッチ後に grep 自身が終了する（`grep | head -1` は pipefail 下で SIGPIPE 誤判定の恐れ）。
+CURRENT_VERSION="$(grep -m1 'MARKETING_VERSION:' project.yml | sed 's/.*MARKETING_VERSION: *//' | tr -d '"' | tr -d ' ')"
 echo "現在のバージョン: $CURRENT_VERSION"
 
 BUMP="${1:-patch}"

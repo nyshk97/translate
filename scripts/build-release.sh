@@ -44,8 +44,14 @@ fi
 # notarize は Hardened Runtime（runtime フラグ）が必須。乗っていなければここで止める。
 echo "🔏 署名 / Hardened Runtime を検証..."
 codesign --verify --strict --verbose=2 "$APP_PATH"
-if ! codesign -d --verbose=4 "$APP_PATH" 2>&1 | grep -q "flags=.*runtime"; then
+# codesign の出力は一旦変数に取ってから判定する。
+# `codesign ... | grep -q` の直結は、grep -q がマッチ即終了でパイプを閉じ、
+# codesign が SIGPIPE 終了 → set -o pipefail 下でパイプライン失敗扱いになり誤検知する。
+CODESIGN_INFO="$(codesign -d --verbose=4 "$APP_PATH" 2>&1)"
+if [[ "$CODESIGN_INFO" != *"(runtime"* ]]; then
   echo "❌ Hardened Runtime が無効です（notarize に必須）。project.yml の ENABLE_HARDENED_RUNTIME=YES（Release）を確認してください。"
+  echo "--- codesign 出力 ---"
+  echo "$CODESIGN_INFO"
   exit 1
 fi
 
