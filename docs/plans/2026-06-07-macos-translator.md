@@ -139,3 +139,4 @@ Web版 / 多言語UI / 中間サーバー / 認証・課金・複数ユーザー
 - 翻訳の実行キーを ⌘Return → **Enter（修飾なし）** に変更。ランチャーでは Enter で翻訳が自然（ペーストした改行は文字列として保持される）
 - 【コードレビュー対応】①手入力時に言語判定が走らない → `translate(redetect:)` を追加し手動入力では入力から方向を再判定（手動トグル/ニュアンスは維持）②キャンセル済みストリームが `isStreaming=false`/`recordHistory` を実行 → 各 Task で `await` 後に `Task.isCancelled` ガード ③anti-clobber が広すぎ直後の正当なコピーも巻き戻す → 「取得した選択テキストと一致したときだけ復元」に限定
 - 【UI改善】戻し訳・トーンを薄い背景カードにして主出力と区別。長文でパネルが画面を超え下が見えない問題 → 入力欄は固定、以降を1つの `ScrollView`（maxHeight 460）にまとめてスクロール可能に（出力の入れ子 ScrollView は撤去）
+- 【コードレビュー2巡目】④キャンセル後も `runStream` のバッファ flush が旧 delta を新 `outputText` に混入させうる → flush 直前・最終 flush 前・catch にも `Task.isCancelled` ガード ⑤戻し訳/トーンの失敗が共有 `errorMessage` を立て主出力をエラー表示に化けさせる → `runStream` に `onError` を追加し、主翻訳は `errorMessage`、補助は各カードに `⚠️` 付きで反映するよう振り分け

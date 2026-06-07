@@ -110,9 +110,11 @@ final class LauncherViewModel {
         isStreaming = true
         let dir = direction
         mainTask = Task { [weak self] in
-            await self?.runStream(text: text, direction: dir, instruction: instruction) { chunk in
-                self?.outputText += chunk
-            }
+            await self?.runStream(
+                text: text, direction: dir, instruction: instruction,
+                onDelta: { chunk in self?.outputText += chunk },
+                onError: { message in self?.errorMessage = message }
+            )
             if Task.isCancelled { return } // キャンセル後は副作用を走らせない
             self?.isStreaming = false
             self?.recordHistory(source: text, direction: dir)
@@ -148,14 +150,17 @@ final class LauncherViewModel {
                 buffer += delta
                 let now = ContinuousClock.now
                 if now - lastFlush >= .milliseconds(40) {
+                    if Task.isCancelled { return }
                     outputText += buffer
                     buffer = ""
                     lastFlush = now
                 }
             }
+            if Task.isCancelled { return }
             if !buffer.isEmpty { outputText += buffer }
         } catch is CancellationError {
         } catch {
+            if Task.isCancelled { return }
             errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
@@ -200,9 +205,11 @@ final class LauncherViewModel {
         let text = outputText
         let dir = direction.toggled
         backTask = Task { [weak self] in
-            await self?.runStream(text: text, direction: dir, instruction: nil) { chunk in
-                self?.backTranslation += chunk
-            }
+            await self?.runStream(
+                text: text, direction: dir, instruction: nil,
+                onDelta: { chunk in self?.backTranslation += chunk },
+                onError: { message in self?.backTranslation = "⚠️ " + message }
+            )
             if Task.isCancelled { return }
             self?.isBackTranslating = false
         }
@@ -218,13 +225,17 @@ final class LauncherViewModel {
         isGeneratingTones = true
         let dir = direction
         tonesTask = Task { [weak self] in
-            await self?.runStream(text: text, direction: dir, instruction: "Use a formal, polite tone.") { chunk in
-                self?.toneFormal += chunk
-            }
+            await self?.runStream(
+                text: text, direction: dir, instruction: "Use a formal, polite tone.",
+                onDelta: { chunk in self?.toneFormal += chunk },
+                onError: { message in self?.toneFormal = "⚠️ " + message }
+            )
             if Task.isCancelled { return }
-            await self?.runStream(text: text, direction: dir, instruction: "Use a casual, friendly, conversational tone.") { chunk in
-                self?.toneCasual += chunk
-            }
+            await self?.runStream(
+                text: text, direction: dir, instruction: "Use a casual, friendly, conversational tone.",
+                onDelta: { chunk in self?.toneCasual += chunk },
+                onError: { message in self?.toneCasual = "⚠️ " + message }
+            )
             if Task.isCancelled { return }
             self?.isGeneratingTones = false
         }
@@ -253,9 +264,12 @@ final class LauncherViewModel {
     // MARK: - private
 
     /// ストリームを 40ms バッファしながら onDelta に流す共通処理。
+    /// エラーは onError に渡す（主翻訳は errorMessage、補助は各カードに反映するため呼び側で振り分ける）。
+    /// キャンセル後は flush も含め一切共有 state に書かない。
     private func runStream(
         text: String, direction: TranslationDirection, instruction: String?,
-        onDelta: @escaping (String) -> Void
+        onDelta: @escaping (String) -> Void,
+        onError: @escaping (String) -> Void
     ) async {
         var buffer = ""
         var lastFlush = ContinuousClock.now
@@ -264,16 +278,19 @@ final class LauncherViewModel {
                 buffer += delta
                 let now = ContinuousClock.now
                 if now - lastFlush >= .milliseconds(40) {
+                    if Task.isCancelled { return }
                     onDelta(buffer)
                     buffer = ""
                     lastFlush = now
                 }
             }
+            if Task.isCancelled { return }
             if !buffer.isEmpty { onDelta(buffer) }
         } catch is CancellationError {
             // 中断は無視
         } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            if Task.isCancelled { return }
+            onError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
         }
     }
 
