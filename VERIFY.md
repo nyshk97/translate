@@ -13,7 +13,7 @@
 ## 環境・前提
 
 - ビルド/タスク: `mise run build`（`xcodegen generate` + `xcodebuild` Debug）/ `mise run run`（ビルド + 起動）/ `mise run kill`（終了）
-- ビルド成果物: `.build/Build/Products/Debug/Translate.app`
+- ビルド成果物: `.build/Build/Products/Debug/Translator.app`
 - Bundle ID: `com.d0ne1s.translate`
 - 署名: Developer ID（Team `VYDUR99LAM`）の安定 ID で Manual 署名。リビルドで cdhash が変わらず TCC（Accessibility / 画面収録）許可が保持される。
 - API キー: Keychain（service `com.d0ne1s.translate` / account `groq-api-key`・`gemini-api-key`）
@@ -36,19 +36,19 @@ mise run build 2>&1 | tail -5
 
 ```sh
 mise run run            # ビルドして起動（メニューバー常駐）
-pgrep -x Translate      # PID が返れば生存
+pgrep -x Translator      # PID が返れば生存
 /usr/libexec/PlistBuddy -c "Print :LSUIElement" \
-  .build/Build/Products/Debug/Translate.app/Contents/Info.plist
+  .build/Build/Products/Debug/Translator.app/Contents/Info.plist
 ```
 - pass: `pgrep` が PID を返す（プロセス生存）かつ `LSUIElement` が `true`（Dock に出ない accessory アプリ）。
-- 終了は `mise run kill`。
+- 終了は `mise run kill`（`killall Translator`）。
 
 ### 署名の安定 ID（TCC 許可の永続性）
 
 署名 ID を変えた／署名まわりを触ったときに確認する。
 
 ```sh
-codesign -dr - .build/Build/Products/Debug/Translate.app 2>&1 | grep designated
+codesign -dr - .build/Build/Products/Debug/Translator.app 2>&1 | grep designated
 ```
 - pass: designated requirement に `identifier "com.d0ne1s.translate"` と `subject.OU = VYDUR99LAM` が含まれる。
 - 2 回クリーンリビルドして上記が一致すれば、リビルドで Accessibility 許可が飛ばないことの担保になる。
@@ -73,16 +73,16 @@ sqlite3 "$DB" "SELECT direction, model, datetime(created_at,'unixepoch','localti
 
 リリース手順や署名・配布まわりを触ったときに確認する。
 
-- `scripts/build-release.sh`: Release ビルド → Developer ID 署名 → notarize → staple → `build/Translate.zip` を生成（公証済みアーティファクトを作るまで）。
+- `scripts/build-release.sh`: Release ビルド → Developer ID 署名 → notarize → staple → `build/Translator.zip` を生成（公証済みアーティファクトを作るまで）。
 - `scripts/release.sh [patch|minor|major|x.y.z]`: バージョン bump → build-release.sh → commit/push → GitHub Release → `nyshk97/homebrew-tap` の `Casks/translate-mac.rb` を更新。
 
 notarize を撃たずに「署名 + Hardened Runtime」だけ検証する（push 等の副作用なし）:
 
 ```sh
 xcodegen generate
-xcodebuild -project Translate.xcodeproj -scheme Translate -configuration Release \
+xcodebuild -project Translator.xcodeproj -scheme Translator -configuration Release \
   -derivedDataPath build clean build 2>&1 | tail -3      # ** BUILD SUCCEEDED **
-APP="build/Build/Products/Release/Translate.app"
+APP="build/Build/Products/Release/Translator.app"
 codesign -d --verbose=4 "$APP" 2>&1 | grep -E "Authority=Developer ID|flags=.*runtime"
 ```
 - pass: `flags=0x10000(runtime)`（Hardened Runtime 有効＝notarize の必須要件）と `Authority=Developer ID Application: ...(VYDUR99LAM)` が出る。

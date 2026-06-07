@@ -2,7 +2,7 @@ import Foundation
 
 /// 開発用の軽量ファイルロガー。`open` 経由起動だと stdout を拾えないため /tmp に追記する。
 enum Log {
-    private static let url = URL(fileURLWithPath: "/tmp/translate.log")
+    private static let url = URL(fileURLWithPath: "/tmp/translator.log")
     private static let formatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss.SSS"

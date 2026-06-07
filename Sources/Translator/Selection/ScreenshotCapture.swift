@@ -5,7 +5,7 @@ enum ScreenshotCapture {
     /// 十字カーソルで範囲選択させ、PNG データを返す。キャンセル時は nil。
     static func captureInteractive() async -> Data? {
         let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("translate-shot-\(UUID().uuidString).png")
+            .appendingPathComponent("translator-shot-\(UUID().uuidString).png")
         return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let proc = Process()
