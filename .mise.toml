@@ -22,3 +22,12 @@ open .build/Build/Products/Debug/Translate.app
 [tasks.kill]
 description = "起動中の Translate を終了する"
 run = "killall Translate 2>/dev/null || true"
+
+[tasks.build-release]
+description = "配布アーティファクトを作る（Release ビルド→署名→notarize→staple→build/Translate.zip）"
+run = "./scripts/build-release.sh"
+
+[tasks.release]
+description = "リリースする（bump→build-release→push→GitHub Release→Cask 更新）。引数: patch|minor|major|x.y.z（既定 patch）"
+usage = 'arg "<bump>" default="patch" help="patch|minor|major|x.y.z"'
+run = './scripts/release.sh "$usage_bump"'
