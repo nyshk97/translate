@@ -19,9 +19,11 @@ struct TranslationService: Sendable {
         }
     }
 
+    static let modelName = "llama-3.3-70b-versatile"
+
     private let endpoint = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
     private let modelsURL = URL(string: "https://api.groq.com/openai/v1/models")!
-    private let model = "llama-3.3-70b-versatile"
+    private let model = TranslationService.modelName
 
     /// TLS / HTTP2 コネクションを温めて初回ハンドシェイク往復を消す。
     func warmUp() {

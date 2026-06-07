@@ -14,8 +14,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Accessibility 権限の確認（未許可なら初回プロンプト。以降 capture() は非プロンプトで判定）
         SelectionCapture.ensureAccessibility()
 
-        // グローバルショートカット登録
-        KeyboardShortcuts.onKeyDown(for: .translate) {
+        // グローバルショートカット登録。
+        // 翻訳は onKeyUp（⌘H を離した後）に発火させる。onKeyDown だと物理 Cmd を
+        // 握ったまま合成 Cmd+C を注入することになり、修飾が外れて「c」が素通りするため。
+        KeyboardShortcuts.onKeyUp(for: .translate) {
             Task { await AppDelegate.onTranslateHotkey() }
         }
         KeyboardShortcuts.onKeyDown(for: .screenshotTranslate) {

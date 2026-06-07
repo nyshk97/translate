@@ -25,4 +25,13 @@ enum TranslationDirection: Sendable {
     var toggled: TranslationDirection {
         self == .toEnglish ? .toJapanese : .toEnglish
     }
+
+    /// 永続化用の安定キー。
+    var key: String {
+        self == .toEnglish ? "toEnglish" : "toJapanese"
+    }
+
+    static func from(key: String) -> TranslationDirection {
+        key == "toJapanese" ? .toJapanese : .toEnglish
+    }
 }

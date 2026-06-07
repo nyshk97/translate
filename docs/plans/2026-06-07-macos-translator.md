@@ -89,10 +89,10 @@ Web版 / 多言語UI / 中間サーバー / 認証・課金・複数ユーザー
 - 実装: `TranslationService.stream` に `instruction` 引数を追加し方向プロンプトに追記。アクション行は主翻訳完了後に表示、結果欄はデータ駆動で自動可視化
 
 ### Phase 3: ローカル履歴（SQLite）[AI🤖]
-- [ ] libsqlite3 薄ラッパ＋スキーマ（入力・出力・方向・モデル・日時）
-- [ ] 翻訳確定時にバックグラウンドで追記（初動を阻害しない）
-- [ ] ランチャー内の軽い一覧＋インクリメンタル検索UI、履歴からの再利用
-- [ ] 動作確認: 翻訳が残る・検索で引ける
+- [x] libsqlite3 薄ラッパ＋スキーマ（actor `HistoryStore` で直列化。入力・出力・方向・モデル・日時）。DB は `~/Library/Application Support/com.d0ne1s.translate/history.sqlite`
+- [x] 翻訳確定時に `Task.detached` でバックグラウンド追記（初動を阻害しない。直前と同一は重複登録しない）
+- [x] ランチャー空状態で一覧＋インクリメンタル検索（120ms デバウンス）、行クリックで API を呼ばず呼び戻し
+- [x] 動作確認: 翻訳が残る（DB 行数で確認）・検索で引ける・呼び戻せる
 
 ### Phase 4前の準備 [人間👨‍💻]
 - [ ] アプリに画面収録（Screen Recording）権限を付与（`screencapture -i` の初回）
@@ -127,8 +127,11 @@ Web版 / 多言語UI / 中間サーバー / 認証・課金・複数ユーザー
 - accessory アプリのパネルは表示後 `isKeyWindow=false` のことがあり入力できない → 開くたびに NSHostingView を載せ直し `onAppear` で `@FocusState` を立ててテキスト欄にフォーカス
 - 【署名/TCC】ad-hoc 署名（`CODE_SIGN_IDENTITY: "-"`）はリビルドのたびに cdhash が変わり、TCC（アクセシビリティ）許可が毎回リセットされ「⌘H のたびに権限ダイアログ」になる。安定した署名 ID（Developer ID `VYDUR99LAM` のハッシュ直指定）に変更し、designated requirement を clean リビルドでも一致させて許可を永続化。`CODE_SIGN_IDENTITY: "Apple Development"` は macOS で "Mac Development" に解決され証明書が見つからず失敗 → ハッシュ直指定で回避。切替時は `tccutil reset Accessibility com.d0ne1s.translate`
 - 【クリップボードのクロバー】合成 Cmd+C 後、復元自体は成功するのに数百ms 後にコピー元アプリ（Electron 系エディタ）が選択テキストを**遅延再書き込み**して上書きしてくる（changeCount で確認）。対策: 復元後 ~1.2s 監視し、元と違う値になったら再復元する `scheduleAntiClobber`。原因特定は `capture()` に退避/取得/復元直後/復元+400ms の値を changeCount 付きでログ出しして実施
+- 【合成 Cmd+C で素の「c」が漏れる（重要）】⌘H 押下時、フォーカス欄に「c」が入力される事故。原因は **修飾キーを `keyDown/keyUp` で送っていた**こと。macOS の物理 modifier は `flagsChanged` イベントであり、C キーに `.flags=.maskCommand` を付けても対象アプリの実効 modifier 状態にならず、特にターミナル/独自入力アプリで素の「c」になる。診断: イベントの `flags` に Cmd は乗る（`cmdFlag=true`）が `changeCount` 変化せず「c」が入る＝配送時に修飾が適用されていない、と切り分け。`.cghidEventTap`/`.cgSessionEventTap` 両方・`onKeyUp`化・30ms 待機すべて無効。**識者助言で解決**: 修飾キーは `event.type = .flagsChanged` で送る＋`CGEventSource.localEventsSuppressionInterval`/`setLocalEventsFilterDuringSuppressionState` で物理キー割り込みを抑制
+- 【選択取得は段階フォールバックが正解】公開 API で任意アプリの選択を確実取得する方法は無い。実装した順: ①`AXSelectedText`（最速・副作用なし）→ ②**前面アプリの menu bar から `AXMenuItemCmdChar=="C"` かつ修飾⌘のみの Copy 項目を `AXUIElementPerformAction(.AXPress)`**（キーを送らないので「c」漏れ無し）→ ③ flagsChanged 修正版 Cmd+C（Copy メニューが無いアプリのみ）。注意: Copy 項目の **`AXEnabled` はメニュー未展開だと古い値（disabled）が返る**ので選択有無の判定に使えない → 一律 AXPress して `changeCount` 変化で判定する
 
 ### 方針変更
 - メニューバー常駐を生 `NSStatusItem` ではなく SwiftUI の `MenuBarExtra` シーンで実装。理由: SwiftUI App ライフサイクルと統合でき、`SettingsLink` で設定ウィンドウを開けてコードが簡潔。NSPanel 制御は `LauncherController` に分離
 - 当初「署名なし（ローカル個人用）」方針だったが、ad-hoc 署名だと TCC 許可がリビルドのたびに飛ぶため **Developer ID で署名**する方針に変更。notarize / Sparkle は引き続き無し（配布しない個人用のため）
 - 手動翻訳の実行キーは Enter ではなく **⌘Return**（axis:.vertical の TextField では Enter を改行に使うため）。コピーは ⌘C。選択→⌘H の主経路は自動翻訳なので実行キーは補助的
+- 選択取得を「合成 Cmd+C 一本」から **AXSelectedText → AXPress(Copy) → 合成 Cmd+C の段階フォールバック**に変更。理由: 合成 Cmd+C は「c」漏れ・クロバー・修飾不適用などトラブルが多く、AX 経路はキー/クリップボードを使わず堅牢で速い。dig 時の「合成 Cmd+C」決定は実質上位互換に置き換え

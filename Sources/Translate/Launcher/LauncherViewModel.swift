@@ -25,9 +25,13 @@ final class LauncherViewModel {
     // ニュアンス自由入力欄
     var nuanceInstruction = ""
 
+    // 履歴（空状態で一覧＋インクリメンタル検索）
+    var historyResults: [HistoryEntry] = []
+
     @ObservationIgnored private var mainTask: Task<Void, Never>?
     @ObservationIgnored private var backTask: Task<Void, Never>?
     @ObservationIgnored private var tonesTask: Task<Void, Never>?
+    @ObservationIgnored private var historyTask: Task<Void, Never>?
     @ObservationIgnored private let service = TranslationService()
 
     func warmUp() { service.warmUp() }
@@ -47,6 +51,34 @@ final class LauncherViewModel {
             sourceText = ""
             isStreaming = false
         }
+        refreshHistory()
+    }
+
+    /// 現在の入力に応じて履歴を更新（空なら最近、入力ありなら検索）。120ms デバウンス。
+    func refreshHistory() {
+        historyTask?.cancel()
+        let query = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
+        historyTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(120))
+            if Task.isCancelled { return }
+            let results = query.isEmpty
+                ? await HistoryStore.shared.recent(limit: 30)
+                : await HistoryStore.shared.search(query, limit: 30)
+            if Task.isCancelled { return }
+            self?.historyResults = results
+        }
+    }
+
+    /// 履歴エントリを呼び戻す（API を呼ばず保存済みの訳を表示）。
+    func loadEntry(_ entry: HistoryEntry) {
+        cancelAll()
+        clearOutputs()
+        errorMessage = nil
+        didCopy = false
+        sourceText = entry.source
+        direction = entry.directionValue
+        outputText = entry.output
+        isStreaming = false
     }
 
     /// 主翻訳。instruction を渡すとニュアンス調整付きで再翻訳。
@@ -64,6 +96,21 @@ final class LauncherViewModel {
                 self?.outputText += chunk
             }
             self?.isStreaming = false
+            self?.recordHistory(source: text, direction: dir)
+        }
+    }
+
+    /// 主翻訳が成功したらバックグラウンドで履歴に追記（初動を阻害しない）。
+    private func recordHistory(source: String, direction: TranslationDirection) {
+        guard errorMessage == nil, !outputText.isEmpty else { return }
+        let output = outputText
+        let key = direction.key
+        let now = Date().timeIntervalSince1970
+        Task.detached {
+            await HistoryStore.shared.insert(
+                source: source, output: output, direction: key,
+                model: TranslationService.modelName, createdAt: now
+            )
         }
     }
 
