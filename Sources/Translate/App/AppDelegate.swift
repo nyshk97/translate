@@ -20,10 +20,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         KeyboardShortcuts.onKeyUp(for: .translate) {
             Task { await AppDelegate.onTranslateHotkey() }
         }
-        KeyboardShortcuts.onKeyDown(for: .screenshotTranslate) {
-            // スクショ翻訳は Phase 4 で実装
-            MainActor.assumeIsolated { NSSound.beep() }
+        KeyboardShortcuts.onKeyUp(for: .screenshotTranslate) {
+            Task { await AppDelegate.onScreenshotHotkey() }
         }
+    }
+
+    /// ⌘⇧H: 範囲選択スクショ → Gemini で翻訳。
+    @MainActor
+    private static func onScreenshotHotkey() async {
+        // パネルは開かず、まず範囲選択させる（キャンセルなら何もしない）
+        guard let data = await ScreenshotCapture.captureInteractive() else { return }
+        LauncherController.shared.presentImage(data, mimeType: "image/png")
     }
 
     /// ⌘H: 開いていれば閉じる。閉じていれば前面アプリの選択を取得して翻訳。

@@ -27,6 +27,12 @@ final class LauncherController {
         }
     }
 
+    /// 画像（スクショ / ペースト / ドロップ）を翻訳しつつパネルを開く。
+    func presentImage(_ data: Data, mimeType: String) {
+        model.translateImage(data, mimeType: mimeType)
+        showPanel()
+    }
+
     func hide() {
         panel?.orderOut(nil)
         model.cancel()

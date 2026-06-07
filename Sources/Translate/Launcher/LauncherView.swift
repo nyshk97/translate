@@ -55,27 +55,46 @@ struct LauncherView: View {
 
     // MARK: - 入力
 
+    @ViewBuilder
     private func inputRow(model: LauncherViewModel) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            TextField("翻訳したいテキスト…", text: Binding(get: { model.sourceText }, set: { model.sourceText = $0 }), axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.system(size: 18))
-                .lineLimit(1...6)
-                .focused($sourceFocused)
-
-            Button(action: { model.swapDirection() }) {
-                Text(model.direction.label)
-                    .font(.system(size: 12, weight: .medium))
-                    .monospaced()
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(.white.opacity(0.08), in: Capsule())
+        if model.isVision, let image = model.image {
+            // 画像翻訳モード: サムネイル＋ラベル
+            HStack(alignment: .center, spacing: 10) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 140, maxHeight: 64)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.white.opacity(0.1)))
+                Text("画像を翻訳")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                Spacer()
             }
-            .buttonStyle(.plain)
-            .help("翻訳方向を反転")
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        } else {
+            HStack(alignment: .top, spacing: 8) {
+                TextField("翻訳したいテキスト…", text: Binding(get: { model.sourceText }, set: { model.sourceText = $0 }), axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 18))
+                    .lineLimit(1...6)
+                    .focused($sourceFocused)
+
+                Button(action: { model.swapDirection() }) {
+                    Text(model.direction.label)
+                        .font(.system(size: 12, weight: .medium))
+                        .monospaced()
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.white.opacity(0.08), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .help("翻訳方向を反転")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
     }
 
     // MARK: - 履歴（空状態）
@@ -122,9 +141,12 @@ struct LauncherView: View {
 
     private func actionRow(model: LauncherViewModel) -> some View {
         HStack(spacing: 6) {
-            actionButton("戻し訳", systemImage: "arrow.uturn.left") { model.backTranslate() }
-            actionButton("トーン", systemImage: "slider.horizontal.3") { model.generateTones() }
-            actionButton("調整", systemImage: "wand.and.stars", active: showNuance) { showNuance.toggle() }
+            // 戻し訳・トーン・調整はテキスト経路のみ（画像翻訳では出さない）
+            if !model.isVision {
+                actionButton("戻し訳", systemImage: "arrow.uturn.left") { model.backTranslate() }
+                actionButton("トーン", systemImage: "slider.horizontal.3") { model.generateTones() }
+                actionButton("調整", systemImage: "wand.and.stars", active: showNuance) { showNuance.toggle() }
+            }
             Spacer()
             Button(model.didCopy ? "コピー済み" : "コピー（⌘C）") { model.copyResult() }
                 .buttonStyle(.plain)

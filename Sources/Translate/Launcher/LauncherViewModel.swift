@@ -28,13 +28,21 @@ final class LauncherViewModel {
     // 履歴（空状態で一覧＋インクリメンタル検索）
     var historyResults: [HistoryEntry] = []
 
+    // 画像翻訳（vision）
+    var image: NSImage?
+    var isVision = false
+
     @ObservationIgnored private var mainTask: Task<Void, Never>?
     @ObservationIgnored private var backTask: Task<Void, Never>?
     @ObservationIgnored private var tonesTask: Task<Void, Never>?
     @ObservationIgnored private var historyTask: Task<Void, Never>?
     @ObservationIgnored private let service = TranslationService()
+    @ObservationIgnored private let gemini = GeminiService()
 
-    func warmUp() { service.warmUp() }
+    func warmUp() {
+        service.warmUp()
+        gemini.warmUp()
+    }
 
     /// パネル表示時の初期化。prefill があれば即翻訳、無ければ空入力。
     func configure(prefill: String?) {
@@ -43,6 +51,8 @@ final class LauncherViewModel {
         errorMessage = nil
         didCopy = false
         nuanceInstruction = ""
+        image = nil
+        isVision = false
         if let prefill, !prefill.isEmpty {
             sourceText = prefill
             direction = LanguageDetector.direction(for: prefill)
@@ -78,6 +88,8 @@ final class LauncherViewModel {
         sourceText = entry.source
         direction = entry.directionValue
         outputText = entry.output
+        image = nil
+        isVision = false
         isStreaming = false
     }
 
@@ -89,6 +101,8 @@ final class LauncherViewModel {
         clearOutputs()
         errorMessage = nil
         didCopy = false
+        image = nil
+        isVision = false
         isStreaming = true
         let dir = direction
         mainTask = Task { [weak self] in
@@ -97,6 +111,58 @@ final class LauncherViewModel {
             }
             self?.isStreaming = false
             self?.recordHistory(source: text, direction: dir)
+        }
+    }
+
+    /// 画像翻訳（vision）。スクショ / ペースト / ドロップ共通の入口。
+    func translateImage(_ data: Data, mimeType: String) {
+        cancelAll()
+        clearOutputs()
+        errorMessage = nil
+        didCopy = false
+        nuanceInstruction = ""
+        sourceText = ""
+        image = NSImage(data: data)
+        isVision = true
+        isStreaming = true
+        let gemini = self.gemini
+        mainTask = Task { [weak self] in
+            await self?.runVisionStream(data: data, mimeType: mimeType, gemini: gemini)
+            self?.isStreaming = false
+            self?.recordVisionHistory()
+        }
+    }
+
+    /// vision ストリームを 40ms バッファしながら outputText に流す。
+    private func runVisionStream(data: Data, mimeType: String, gemini: GeminiService) async {
+        var buffer = ""
+        var lastFlush = ContinuousClock.now
+        do {
+            for try await delta in gemini.streamImageTranslation(imageData: data, mimeType: mimeType) {
+                buffer += delta
+                let now = ContinuousClock.now
+                if now - lastFlush >= .milliseconds(40) {
+                    outputText += buffer
+                    buffer = ""
+                    lastFlush = now
+                }
+            }
+            if !buffer.isEmpty { outputText += buffer }
+        } catch is CancellationError {
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    private func recordVisionHistory() {
+        guard errorMessage == nil, !outputText.isEmpty else { return }
+        let output = outputText
+        let now = Date().timeIntervalSince1970
+        Task.detached {
+            await HistoryStore.shared.insert(
+                source: "🖼 画像", output: output, direction: "toJapanese",
+                model: GeminiService.modelName, createdAt: now
+            )
         }
     }
 

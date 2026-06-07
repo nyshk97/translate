@@ -95,14 +95,14 @@ Web版 / 多言語UI / 中間サーバー / 認証・課金・複数ユーザー
 - [x] 動作確認: 翻訳が残る（DB 行数で確認）・検索で引ける・呼び戻せる
 
 ### Phase 4前の準備 [人間👨‍💻]
-- [ ] アプリに画面収録（Screen Recording）権限を付与（`screencapture -i` の初回）
+- [x] アプリに画面収録（Screen Recording）権限を付与（`screencapture -i` の初回）→ 付与済み
 
 ### Phase 4: Vision 経路（スクショ・画像）[AI🤖]
-- [ ] `screencapture -i` 起動 → temp 保存 → 読み込み（「待つ前提」のUI: ローディング提示）
-- [ ] Gemini Flash ストリーミングクライアント（`streamGenerateContent` SSE、画像＋固定プロンプト）
-- [ ] ⌘⇧H ホットキー登録 → スクショ翻訳フロー
-- [ ] パネルへの画像ペースト/ドロップ → 同じ vision 経路で翻訳
-- [ ] 動作確認: 画面範囲選択 → 翻訳、画像ドロップ → 翻訳
+- [x] `screencapture -i -x` を Process で起動 → temp PNG → 読み込み（`ScreenshotCapture`、キャンセル時は nil）
+- [x] Gemini ストリーミングクライアント（`gemini-2.5-flash`、`streamGenerateContent?alt=sse`、画像＋固定プロンプト）`GeminiService`。起動時ウォームアップも追加
+- [x] ⌘⇧H ホットキー登録 → スクショ翻訳フロー（パネルに画像サムネイル＋ストリーミング訳、履歴にも記録）
+- [x] ~~パネルへの画像ペースト/ドロップ~~ → **削除**。Spotlight 風パネルは外クリックで閉じるため Finder からのドラッグでパネルが消える／ファイルのペーストはパス文字列が入るだけで実用不可。ユーザー判断で不要のため撤去
+- [x] 動作確認: 画面範囲選択 → 翻訳 を確認済み（外国語→日本語 / 日本語→英語、モデルが方向を吸収）
 
 ### Phase 5: 仕上げ・常駐最適化 [AI🤖]
 - [ ] ログイン項目（SMAppService）ON デフォルト＋設定トグル
