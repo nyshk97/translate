@@ -5,15 +5,16 @@ description = "project.yml から Xcode プロジェクトを再生成する"
 run = "xcodegen generate"
 
 [tasks.build]
-description = "アプリをビルドする（Debug・ad-hoc 署名）"
+description = "アプリをビルドする（Debug・Developer ID 署名）"
 run = """
 xcodegen generate
 xcodebuild -scheme Translate -configuration Debug -derivedDataPath .build -destination 'generic/platform=macOS' build
 """
 
 [tasks.run]
-description = "ビルドして起動する（メニューバーに常駐）"
+description = "開発ビルドを起動（先に起動中の Translate を終了して競合回避）"
 run = """
+killall Translate 2>/dev/null || true
 xcodegen generate
 xcodebuild -scheme Translate -configuration Debug -derivedDataPath .build -destination 'generic/platform=macOS' build
 open .build/Build/Products/Debug/Translate.app
@@ -22,6 +23,13 @@ open .build/Build/Products/Debug/Translate.app
 [tasks.kill]
 description = "起動中の Translate を終了する"
 run = "killall Translate 2>/dev/null || true"
+
+[tasks.use-release]
+description = "開発ビルドを終了してリリース版（/Applications）に戻す"
+run = """
+killall Translate 2>/dev/null || true
+open /Applications/Translate.app
+"""
 
 [tasks.build-release]
 description = "配布アーティファクトを作る（Release ビルド→署名→notarize→staple→build/Translate.zip）"
