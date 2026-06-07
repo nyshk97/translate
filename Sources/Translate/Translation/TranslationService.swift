@@ -32,9 +32,14 @@ struct TranslationService: Sendable {
     }
 
     /// トークン delta を逐次 yield するストリーム。
-    func stream(text: String, direction: TranslationDirection) -> AsyncThrowingStream<String, Error> {
+    /// instruction を渡すと方向プロンプトの後ろに追記する（トーン・ニュアンス調整用）。
+    func stream(text: String, direction: TranslationDirection, instruction: String? = nil) -> AsyncThrowingStream<String, Error> {
         let endpoint = self.endpoint
         let model = self.model
+        let systemContent: String = {
+            guard let instruction, !instruction.isEmpty else { return direction.systemPrompt }
+            return direction.systemPrompt + " " + instruction
+        }()
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -48,7 +53,7 @@ struct TranslationService: Sendable {
                     let body: [String: Any] = [
                         "model": model,
                         "messages": [
-                            ["role": "system", "content": direction.systemPrompt],
+                            ["role": "system", "content": systemContent],
                             ["role": "user", "content": text],
                         ],
                         "stream": true,

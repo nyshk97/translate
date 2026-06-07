@@ -3,71 +3,35 @@ import SwiftUI
 struct LauncherView: View {
     let model: LauncherViewModel
     @FocusState private var sourceFocused: Bool
+    @State private var showNuance = false
+
+    private let nuancePresets: [(label: String, instruction: String)] = [
+        ("丁寧に", "Use a more polite, formal tone."),
+        ("カジュアルに", "Use a more casual, friendly tone."),
+        ("短く", "Make it more concise."),
+        ("直訳", "Translate more literally, staying close to the source."),
+    ]
 
     var body: some View {
         @Bindable var model = model
         VStack(alignment: .leading, spacing: 0) {
-            // 入力行 + 方向トグル
-            HStack(alignment: .top, spacing: 8) {
-                TextField("翻訳したいテキスト…", text: $model.sourceText, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 18))
-                    .lineLimit(1...6)
-                    .focused($sourceFocused)
-
-                Button(action: { model.swapDirection() }) {
-                    Text(model.direction.label)
-                        .font(.system(size: 12, weight: .medium))
-                        .monospaced()
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(.white.opacity(0.08), in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .help("翻訳方向を反転")
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            inputRow(model: model)
 
             if showsOutput {
                 Divider().opacity(0.4)
-
-                Group {
-                    if let err = model.errorMessage {
-                        Text(err)
-                            .font(.system(size: 14))
-                            .foregroundStyle(.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        ScrollView {
-                            Text(displayedOutput)
-                                .font(.system(size: 17))
-                                .foregroundStyle(model.outputText.isEmpty ? .secondary : .primary)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .frame(maxHeight: 260)
-                    }
+                outputArea
+                if !model.isStreaming && !model.outputText.isEmpty {
+                    actionRow(model: model)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-
-                HStack(spacing: 8) {
-                    if model.isStreaming {
-                        ProgressView().controlSize(.small)
-                    }
-                    Spacer()
-                    Button(model.didCopy ? "コピー済み" : "コピー（⌘C）") {
-                        model.copyResult()
-                    }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .keyboardShortcut("c", modifiers: .command)
-                    .disabled(model.outputText.isEmpty)
+                if showNuance {
+                    nuanceControls(model: model)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 12)
+                if showsBack {
+                    auxSection(title: "戻し訳", text: model.backTranslation, loading: model.isBackTranslating)
+                }
+                if showsTones {
+                    tonesSection
+                }
             }
         }
         .frame(width: 640, alignment: .leading)
@@ -86,12 +50,157 @@ struct LauncherView: View {
         .onAppear { sourceFocused = true }
     }
 
+    // MARK: - 入力
+
+    private func inputRow(model: LauncherViewModel) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            TextField("翻訳したいテキスト…", text: Binding(get: { model.sourceText }, set: { model.sourceText = $0 }), axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.system(size: 18))
+                .lineLimit(1...6)
+                .focused($sourceFocused)
+
+            Button(action: { model.swapDirection() }) {
+                Text(model.direction.label)
+                    .font(.system(size: 12, weight: .medium))
+                    .monospaced()
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.white.opacity(0.08), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .help("翻訳方向を反転")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+    }
+
+    // MARK: - 主出力
+
+    private var outputArea: some View {
+        Group {
+            if let err = model.errorMessage {
+                Text(err)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ScrollView {
+                    Text(model.outputText.isEmpty && model.isStreaming ? "翻訳中…" : model.outputText)
+                        .font(.system(size: 17))
+                        .foregroundStyle(model.outputText.isEmpty ? .secondary : .primary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 220)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    // MARK: - アクション行
+
+    private func actionRow(model: LauncherViewModel) -> some View {
+        HStack(spacing: 6) {
+            actionButton("戻し訳", systemImage: "arrow.uturn.left") { model.backTranslate() }
+            actionButton("トーン", systemImage: "slider.horizontal.3") { model.generateTones() }
+            actionButton("調整", systemImage: "wand.and.stars", active: showNuance) { showNuance.toggle() }
+            Spacer()
+            Button(model.didCopy ? "コピー済み" : "コピー（⌘C）") { model.copyResult() }
+                .buttonStyle(.plain)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .keyboardShortcut("c", modifiers: .command)
+                .disabled(model.outputText.isEmpty)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
+    }
+
+    private func actionButton(_ title: String, systemImage: String, active: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 12, weight: .medium))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(active ? .white.opacity(0.16) : .white.opacity(0.06), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - ニュアンス調整
+
+    private func nuanceControls(model: LauncherViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                ForEach(nuancePresets, id: \.label) { preset in
+                    Button(preset.label) { model.applyNuance(preset.instruction) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+            }
+            TextField("指示を入力（例: もっと簡潔に）", text: Binding(get: { model.nuanceInstruction }, set: { model.nuanceInstruction = $0 }))
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 13))
+                .onSubmit { model.applyNuance(model.nuanceInstruction) }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 12)
+    }
+
+    // MARK: - 戻し訳 / トーン
+
+    private func auxSection(title: String, text: String, loading: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Divider().opacity(0.3)
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.top, 8)
+            Text(text.isEmpty && loading ? "…" : text)
+                .font(.system(size: 15))
+                .foregroundStyle(text.isEmpty ? .secondary : .primary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 12)
+    }
+
+    private var tonesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider().opacity(0.3)
+            toneCard("フォーマル", text: model.toneFormal, loading: model.isGeneratingTones && model.toneFormal.isEmpty)
+            toneCard("カジュアル", text: model.toneCasual, loading: model.isGeneratingTones && model.toneCasual.isEmpty)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+    }
+
+    private func toneCard(_ title: String, text: String, loading: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Text(text.isEmpty && loading ? "…" : text)
+                .font(.system(size: 15))
+                .foregroundStyle(text.isEmpty ? .secondary : .primary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: - 可視判定
+
     private var showsOutput: Bool {
         model.isStreaming || !model.outputText.isEmpty || model.errorMessage != nil
     }
-
-    private var displayedOutput: String {
-        if model.outputText.isEmpty && model.isStreaming { return "翻訳中…" }
-        return model.outputText
+    private var showsBack: Bool {
+        model.isBackTranslating || !model.backTranslation.isEmpty
+    }
+    private var showsTones: Bool {
+        model.isGeneratingTones || !model.toneFormal.isEmpty || !model.toneCasual.isEmpty
     }
 }
