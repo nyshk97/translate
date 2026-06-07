@@ -10,7 +10,7 @@ struct TranslatorApp: App {
             Button("翻訳パネルを開く") {
                 LauncherController.shared.toggle()
             }
-            .keyboardShortcut("o")
+            .keyboardShortcut("h")
 
             SettingsLink {
                 Text("設定…")
