@@ -1,0 +1,38 @@
+import AppKit
+import KeyboardShortcuts
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // Dock に出さないメニューバー常駐アプリ
+        NSApp.setActivationPolicy(.accessory)
+        Log.write("applicationDidFinishLaunching")
+
+        // 起動時ウォームアップ（TLS/HTTP2 を温める）
+        LauncherController.shared.model.warmUp()
+
+        // Accessibility 権限の確認（未許可なら初回プロンプト。以降 capture() は非プロンプトで判定）
+        SelectionCapture.ensureAccessibility()
+
+        // グローバルショートカット登録
+        KeyboardShortcuts.onKeyDown(for: .translate) {
+            Task { await AppDelegate.onTranslateHotkey() }
+        }
+        KeyboardShortcuts.onKeyDown(for: .screenshotTranslate) {
+            // スクショ翻訳は Phase 4 で実装
+            MainActor.assumeIsolated { NSSound.beep() }
+        }
+    }
+
+    /// ⌘H: 開いていれば閉じる。閉じていれば前面アプリの選択を取得して翻訳。
+    @MainActor
+    private static func onTranslateHotkey() async {
+        if LauncherController.shared.isVisible {
+            LauncherController.shared.hide()
+            return
+        }
+        // 自アプリを活性化する前に、前面アプリから選択テキストを取得
+        let selected = await SelectionCapture.capture()
+        LauncherController.shared.present(prefill: selected)
+    }
+}

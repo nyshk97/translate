@@ -1,0 +1,14 @@
+# XcodeGen 生成物（project.yml が source-of-truth）
+*.xcodeproj
+Generated/
+
+# ビルド成果物
+.build/
+DerivedData/
+
+# Xcode ユーザー状態
+*.xcuserstate
+xcuserdata/
+
+# macOS
+.DS_Store

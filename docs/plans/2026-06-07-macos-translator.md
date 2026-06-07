@@ -1,0 +1,133 @@
+# macOS ネイティブ翻訳ツール（初動最速ランチャー）
+
+## 概要・やりたいこと
+
+自分専用の macOS ネイティブ翻訳ツールを作る。メニューバー常駐＋グローバルショートカットで即呼び出すランチャー1画面アプリ。
+
+最優先は**「ショートカットを押した瞬間に最初のトークンが出る」初動の体感速度**。総生成時間ではなく TTFT 体感を最大化し、初動までの周辺処理（言語判定・コネクション確立・UI描画）をすべて削る。当面は英↔日中心、汎用性より自分の用途に振り切る。
+
+コア機能: 選択テキスト翻訳 / 戻し訳チェック / スクショ・画像翻訳（vision）/ ローカル履歴（一覧＋検索）/ 設定。
+v1で軽量に作れる派生（戻し訳・トーン2案・ニュアンス調整）も含める。重い経路（要約・詳しい解説）は後回し。
+
+## 前提・わかっていること
+
+### プロバイダー / モデル
+- **テキスト（初動最速経路）**: Groq・**`llama-3.3-70b-versatile`**（Console の Multilingual カテゴリに掲載。70B級・品質重視で確定）。OpenAI互換 SSE でストリーミング。Groq はモデルが大きくても TTFT が小さいため品質と初動を両立
+  - 代替候補: `Llama 4 Scout`（より新しく高速な MoE。品質に不満が出たら試す）
+  - **避ける**: GPT OSS 120B/20B・Qwen 3 32B 等の reasoning 系（本文前に思考トークンを吐き TTFT が悪化するため、初動最速の翻訳経路には不向き）
+- **Vision（スクショ/画像）**: Gemini Flash。テキストとは**別系統・「待つ前提」**で設計（初動最速方針はテキスト経路にのみ適用）
+- **重い経路（要約・詳しい解説の高性能モデルルーティング）**: v1では作らない（後回し）
+- API キーは Groq / Google の2本。**Keychain 保存**（平文で置かない）
+
+### 入力取得
+- **選択テキスト**: 合成 Cmd+C 送信 → pasteboard 読取 → **元クリップボードを復元**。Accessibility 権限が必要。Electron/Web ビュー含めほぼ全アプリで動く互換性最優先方式
+- **スクショ**: `screencapture -i` の OS 標準範囲選択UIを使う → temp 保存 → Gemini へ。画像のパネルへのペースト/ドロップも同じ vision 経路で対応
+- **言語判定**: ローカル文字種判定のみ（LLM を呼ばない）。ひらがな/カタカナを含めば日本語入力とみなし英訳、含まなければ和訳。判定は「日本語か否か」の2値だけ
+- **方向の手動オーバーライド**: 文字種判定が外れたとき用（例: 漢字のみの日本語）にパネルへ反転トグルを置く
+
+### ショートカット
+- **KeyboardShortcuts (SPM)** を使用（録音UI＋永続化＋Carbon登録を一括）
+- 既定キー: **⌘H＝翻訳**（選択ありで即翻訳／無しで空ランチャー）、**⌘⇧H＝スクショ翻訳**
+  - 既知のトレードオフ: ⌘H はシステムの「隠す（Hide）」を全アプリで上書きする。承知の上。録音UIで後から変更可
+- グローバルホットキーは2つ
+
+### UI / パネル
+- メニューバー常駐（`NSStatusItem`）＋ Spotlight風・画面中央上寄りの `NSPanel`。Esc / 外クリックで閉じる
+- **編集可能なソース欄**（選択テキストはここに流し込む。選択・手動入力を統一）＋ ストリーミング出力欄
+- ストリーミング描画は **30〜50ms バッファ**してから state 更新（トークン毎再描画のカクつき回避）
+- 結果は**明示コピー（Enter / ⌘C）**。元クリップボードは復元したまま
+- ボタン: **戻し訳** / **トーン2案（フォーマル・カジュアル）** / **ニュアンス調整（プリセット＋自由欄）**
+- ニュアンス・トーンは英訳・和訳どちらの方向でも動く
+- **履歴**: SQLite（OS同梱 libsqlite3、外部依存なし）。ランチャー内の軽い一覧＋インクリメンタル検索。書き込みはバックグラウンドで初動に影響させない
+
+### アプリ / 基盤
+- Swift / SwiftUI（必要に応じて AppKit）。**XcodeGen**（`project.yml` が source-of-truth、`.xcodeproj` は生成物=gitignore）
+- 最低 macOS: **14.0 Sonoma**（SMAppService・モダンSwiftUI の下限。開発環境は macOS 26 で余裕あり）
+- **ログイン時自動常駐 ON デフォルト**＋設定でトグル（SMAppService）
+- 起動時＋パネル表示時に Groq/Gemini のコネクションをウォームアップ（TLS/HTTP2 往復を消す）
+- ネイティブ HTTP（`URLSession`）。CORS/プリフライト対策は不要
+- ローカル完結・個人用。署名/notarize/Sparkle なし。非アクティブ時はバックグラウンド処理を止める
+
+### 非目標（やらない）
+Web版 / 多言語UI / 中間サーバー / 認証・課金・複数ユーザー / 重い汎用抽象化・プラグイン機構 / 添削・校正 / 発音再生 / AI返信作成 など（CLAUDE.md「不要」リスト準拠）
+
+## 実装計画
+
+### 事前準備 [人間👨‍💻]
+- [x] Groq の API キーを取得する（console.groq.com）→ Keychain 格納済み（account=`groq-api-key`）
+- [x] Google AI Studio で Gemini の API キーを取得する（aistudio.google.com）→ Keychain 格納済み（account=`gemini-api-key`）。Phase 4 で使用
+- [x] `xcodegen` / `mise` が入っているか確認（無ければ Brewfile 経由で追加）→ xcodegen 2.45.4 / mise / Xcode 26.5 / Swift 6.3.2 確認
+
+### Phase 0: プロジェクト基盤 [AI🤖]
+- [x] `project.yml`（XcodeGen）作成: macOS app、最低 macOS 14.0、`LSUIElement`/accessory 設定、KeyboardShortcuts(v1.10.0) の SPM 依存、`schemes:` 明示
+- [x] `.mise.toml`（主要 [tasks] に日本語 description: regen/build/run/kill）
+- [x] `.gitignore`（`*.xcodeproj`, `Generated/`, `.build/` 等）
+- [x] メニューバー常駐スケルトン: accessory policy、メニューバーアイコン、空の `NSPanel`（Spotlight風・中央表示・Esc/外クリックで閉じる）
+- [x] 設定画面の器（SwiftUI Settings シーン）: APIキー入力欄（Keychain保存）・ホットキー録音(KeyboardShortcuts.Recorder)・ログイン項目トグル(無効プレースホルダ)
+- [x] Keychain ラッパ（Groq/Gemini キーの保存・読出）
+- [x] ビルド＆起動確認: BUILD SUCCEEDED・常駐プロセス生存・LSUIElement=true 確認（メニューバー目視とパネル開閉はユーザー確認待ち）
+
+### Phase 1前の準備 [人間👨‍💻]
+- [x] アプリに Accessibility 権限を付与（合成 Cmd+C と グローバルホットキーに必要）→ 付与済み。署名を安定 ID にしたため以降のリビルドでも保持される
+
+### Phase 1: テキスト翻訳コア（初動最速経路）[AI🤖]
+- [x] ローカル言語判定（ひらがな/カタカナ/半角カナ有無の2値）`LanguageDetector`
+- [x] Groq ストリーミングクライアント（`URLSession.bytes`、OpenAI互換 SSE パース、短い固定プロンプト）`TranslationService`
+- [x] ウォームアップ（起動時＋パネル表示時に `/v1/models` GET でコネクション温め）
+- [x] 選択テキスト取得（合成 Cmd+C → pasteboard 読取 → 元クリップボード全タイプ復元）`SelectionCapture`、Accessibility 権限プロンプト含む
+- [x] ⌘H ホットキー登録: 開いていればトグルで閉じ、閉じていれば選択取得→即翻訳／選択無しは空ランチャー
+- [x] パネルUI: 編集可能ソース欄＋ストリーミング出力欄、40msバッファ描画、方向反転トグル、`.preferredContentSize`＋上端固定で出力に追従
+- [x] 結果の明示コピー（⌘C）。手動翻訳は ⌘Return（Return は改行のため）。中断可能な非ブロッキング動作
+- [x] エラー表示（キー未設定・APIエラーをパネル内に赤字表示）
+- [x] 動作確認: 日本語選択→⌘H→英訳 / 英語選択→和訳 / Esc / ⌘C / クリップボード復元（クロバー対策込み3回連続）すべて確認済み
+
+### Phase 2: 戻し訳・トーン・ニュアンス [AI🤖]
+- [ ] 戻し訳ボタン（翻訳経路を逆向きに1回呼ぶだけ）
+- [ ] トーン2案ボタン（フォーマル/カジュアルをストリーム表示。デフォルトでは出さない）
+- [ ] ニュアンス調整（プリセットボタン＋自由テキスト欄で再翻訳）
+- [ ] 各機能が英訳・和訳どちらの方向でも動くことを確認
+
+### Phase 3: ローカル履歴（SQLite）[AI🤖]
+- [ ] libsqlite3 薄ラッパ＋スキーマ（入力・出力・方向・モデル・日時）
+- [ ] 翻訳確定時にバックグラウンドで追記（初動を阻害しない）
+- [ ] ランチャー内の軽い一覧＋インクリメンタル検索UI、履歴からの再利用
+- [ ] 動作確認: 翻訳が残る・検索で引ける
+
+### Phase 4前の準備 [人間👨‍💻]
+- [ ] アプリに画面収録（Screen Recording）権限を付与（`screencapture -i` の初回）
+
+### Phase 4: Vision 経路（スクショ・画像）[AI🤖]
+- [ ] `screencapture -i` 起動 → temp 保存 → 読み込み（「待つ前提」のUI: ローディング提示）
+- [ ] Gemini Flash ストリーミングクライアント（`streamGenerateContent` SSE、画像＋固定プロンプト）
+- [ ] ⌘⇧H ホットキー登録 → スクショ翻訳フロー
+- [ ] パネルへの画像ペースト/ドロップ → 同じ vision 経路で翻訳
+- [ ] 動作確認: 画面範囲選択 → 翻訳、画像ドロップ → 翻訳
+
+### Phase 5: 仕上げ・常駐最適化 [AI🤖]
+- [ ] ログイン項目（SMAppService）ON デフォルト＋設定トグル
+- [ ] 設定画面の実装完成（APIキー secure 入力→Keychain、ホットキー録音、ログイン項目）
+- [ ] 非アクティブ時のバックグラウンド処理停止（CPU/メモリ抑制）
+- [ ] 既存の初動速度に影響が出ていないか最終確認
+
+### 動作確認 [人間👨‍💻]
+- [ ] 各アプリ（ネイティブ/Electron/ブラウザ）で選択翻訳が効くか
+- [ ] 初動の体感速度が満足できるか
+- [ ] スクショ翻訳・画像翻訳の品質
+- [ ] ログイン後に自動常駐するか
+- [ ] ⌘H の Hide 上書きが許容範囲か（必要なら録音UIで再割当）
+
+## ログ
+### 試したこと・わかったこと
+- Groq Console のモデル一覧で `llama-3.3-70b-versatile`（Multilingual）を確認 → テキスト経路の確定モデルに採用
+- KeyboardShortcuts は最新 v1.10.0。`KeyboardShortcuts.Name` が Sendable 非準拠で Swift 6 strict concurrency が `static let` を弾く → `nonisolated(unsafe) static let` でオプトアウトしてビルド通過
+- SourceKit のインライン診断（`No such module 'KeyboardShortcuts'` 等）はホールモジュール索引取りこぼしで頻発するが実ビルドは通る → ビルド結果を信用
+- Bash tool 側プロセスに画面収録権限が無く `screencapture` が真っ黒画像を返す → メニューバーの目視確認はユーザー依頼
+- 【想定外の失敗】⌘H でパネルが出ず無反応。原因は `NSPanel.collectionBehavior` に `.canJoinAllSpaces` と `.moveToActiveSpace` を同時指定（排他で `NSInternalInconsistencyException`）。AppKit イベントハンドラ内の例外はループが握りつぶしクラッシュしないため、`sample` でスタック採取＋同一 init を CLI 再現して特定。修正: `.moveToActiveSpace` を外す。教訓: 全スペース＋フルスクリーン上は `[.canJoinAllSpaces, .fullScreenAuxiliary]`
+- accessory アプリのパネルは表示後 `isKeyWindow=false` のことがあり入力できない → 開くたびに NSHostingView を載せ直し `onAppear` で `@FocusState` を立ててテキスト欄にフォーカス
+- 【署名/TCC】ad-hoc 署名（`CODE_SIGN_IDENTITY: "-"`）はリビルドのたびに cdhash が変わり、TCC（アクセシビリティ）許可が毎回リセットされ「⌘H のたびに権限ダイアログ」になる。安定した署名 ID（Developer ID `VYDUR99LAM` のハッシュ直指定）に変更し、designated requirement を clean リビルドでも一致させて許可を永続化。`CODE_SIGN_IDENTITY: "Apple Development"` は macOS で "Mac Development" に解決され証明書が見つからず失敗 → ハッシュ直指定で回避。切替時は `tccutil reset Accessibility com.d0ne1s.translate`
+- 【クリップボードのクロバー】合成 Cmd+C 後、復元自体は成功するのに数百ms 後にコピー元アプリ（Electron 系エディタ）が選択テキストを**遅延再書き込み**して上書きしてくる（changeCount で確認）。対策: 復元後 ~1.2s 監視し、元と違う値になったら再復元する `scheduleAntiClobber`。原因特定は `capture()` に退避/取得/復元直後/復元+400ms の値を changeCount 付きでログ出しして実施
+
+### 方針変更
+- メニューバー常駐を生 `NSStatusItem` ではなく SwiftUI の `MenuBarExtra` シーンで実装。理由: SwiftUI App ライフサイクルと統合でき、`SettingsLink` で設定ウィンドウを開けてコードが簡潔。NSPanel 制御は `LauncherController` に分離
+- 当初「署名なし（ローカル個人用）」方針だったが、ad-hoc 署名だと TCC 許可がリビルドのたびに飛ぶため **Developer ID で署名**する方針に変更。notarize / Sparkle は引き続き無し（配布しない個人用のため）
+- 手動翻訳の実行キーは Enter ではなく **⌘Return**（axis:.vertical の TextField では Enter を改行に使うため）。コピーは ⌘C。選択→⌘H の主経路は自動翻訳なので実行キーは補助的

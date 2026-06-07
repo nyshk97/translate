@@ -1,0 +1,51 @@
+name: Translate
+
+options:
+  bundleIdPrefix: com.d0ne1s
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+packages:
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    from: "1.10.0"
+
+targets:
+  Translate:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+    dependencies:
+      - package: KeyboardShortcuts
+    info:
+      path: Generated/Info.plist
+      properties:
+        # メニューバー常駐（Dock アイコンを出さない accessory アプリ）
+        LSUIElement: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.d0ne1s.translate
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        # 安定した署名 ID（Developer ID Application / Team VYDUR99LAM）で署名。
+        # リビルドしても署名 ID が変わらないため TCC（アクセシビリティ）許可が保持される。
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "85D91870B2836DB303E2224A2D8D56051F26A6FB"
+        DEVELOPMENT_TEAM: "VYDUR99LAM"
+        ENABLE_HARDENED_RUNTIME: NO
+        SWIFT_STRICT_CONCURRENCY: complete
+
+schemes:
+  Translate:
+    build:
+      targets:
+        Translate: all
+    run:
+      config: Debug
+    archive:
+      config: Release

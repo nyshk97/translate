@@ -1,0 +1,24 @@
+# ランタイム（Swift）は Xcode 同梱を使うため [tools] は指定しない。
+
+[tasks.regen]
+description = "project.yml から Xcode プロジェクトを再生成する"
+run = "xcodegen generate"
+
+[tasks.build]
+description = "アプリをビルドする（Debug・ad-hoc 署名）"
+run = """
+xcodegen generate
+xcodebuild -scheme Translate -configuration Debug -derivedDataPath .build -destination 'generic/platform=macOS' build
+"""
+
+[tasks.run]
+description = "ビルドして起動する（メニューバーに常駐）"
+run = """
+xcodegen generate
+xcodebuild -scheme Translate -configuration Debug -derivedDataPath .build -destination 'generic/platform=macOS' build
+open .build/Build/Products/Debug/Translate.app
+"""
+
+[tasks.kill]
+description = "起動中の Translate を終了する"
+run = "killall Translate 2>/dev/null || true"
