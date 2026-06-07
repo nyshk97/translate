@@ -1,9 +1,9 @@
 #!/bin/bash
-# Translate リリーススクリプト
+# Translator リリーススクリプト
 # 使い方: ./scripts/release.sh [patch|minor|major|<x.y.z>]   （省略時は patch）
 #
 # 1. project.yml の MARKETING_VERSION を bump（CURRENT_PROJECT_VERSION はタイムスタンプ）
-# 2. build-release.sh で署名 + notarize + staple 済みの build/Translate.zip を作成
+# 2. build-release.sh で署名 + notarize + staple 済みの build/Translator.zip を作成
 # 3. バージョン更新を commit して main に push
 # 4. GitHub Release（v<version>）を作成し ZIP を添付
 # 5. nyshk97/homebrew-tap の Casks/translate-mac.rb を作成/更新
@@ -18,7 +18,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 # ===== 設定 =====
-APP_NAME="Translate"
+APP_NAME="Translator"
 BUNDLE_ID="com.d0ne1s.translate"
 GITHUB_REPO="nyshk97/translate"
 TAP_REPO="nyshk97/homebrew-tap"

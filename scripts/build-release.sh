@@ -1,9 +1,9 @@
 #!/bin/bash
-# Translate リリース成果物ビルドスクリプト
+# Translator リリース成果物ビルドスクリプト
 #
 # Release 構成でビルド → Developer ID 署名（project.yml の Manual 署名 + Hardened Runtime）
 # → notarize → staple → 配布用 ZIP（ditto）を作る。
-# 出力: build/Translate.zip と、その sha256 を標準出力に表示する。
+# 出力: build/Translator.zip と、その sha256 を標準出力に表示する。
 #
 # バージョン更新・GitHub Release・Cask 更新は release.sh が担当する。
 # このスクリプトの責務は「公証済みの配布アーティファクトを作る」まで。
@@ -14,8 +14,8 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 # ===== 設定 =====
-APP_NAME="Translate"
-SCHEME="Translate"
+APP_NAME="Translator"
+SCHEME="Translator"
 # Developer ID Application（Team VYDUR99LAM）の安定署名 ID。project.yml の CODE_SIGN_IDENTITY と一致。
 SIGN_IDENTITY="85D91870B2836DB303E2224A2D8D56051F26A6FB"
 # 既存の notarytool プロファイルを流用（同一 Apple ID / Team VYDUR99LAM のため新規作成不要）。

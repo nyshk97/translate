@@ -1,4 +1,4 @@
-name: Translate
+name: Translator
 
 options:
   bundleIdPrefix: com.d0ne1s
@@ -13,7 +13,7 @@ packages:
     from: "1.10.0"
 
 targets:
-  Translate:
+  Translator:
     type: application
     platform: macOS
     sources:
@@ -56,10 +56,10 @@ targets:
           ENABLE_HARDENED_RUNTIME: YES
 
 schemes:
-  Translate:
+  Translator:
     build:
       targets:
-        Translate: all
+        Translator: all
     run:
       config: Debug
     archive:
