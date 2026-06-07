@@ -30,6 +30,8 @@ targets:
         # MARKETING_VERSION / CURRENT_PROJECT_VERSION（release.sh が bump する値）を反映させる。
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # アプリアイコン（Assets.xcassets の AppIcon）。actool が注入する値を明示。
+        CFBundleIconName: AppIcon
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.d0ne1s.translate
@@ -37,6 +39,8 @@ targets:
         CURRENT_PROJECT_VERSION: "20260607204459"
         SWIFT_VERSION: "6.0"
         MACOSX_DEPLOYMENT_TARGET: "14.0"
+        # アプリアイコン（Assets.xcassets の AppIcon を asset catalog からコンパイル）
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # 安定した署名 ID（Developer ID Application / Team VYDUR99LAM）で署名。
         # リビルドしても署名 ID が変わらないため TCC（アクセシビリティ）許可が保持される。
         CODE_SIGN_STYLE: Manual
