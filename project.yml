@@ -35,8 +35,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.d0ne1s.translate
-        MARKETING_VERSION: "0.1.2"
-        CURRENT_PROJECT_VERSION: "20260607232742"
+        MARKETING_VERSION: "0.1.3"
+        CURRENT_PROJECT_VERSION: "20260607233823"
         SWIFT_VERSION: "6.0"
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         # アプリアイコン（Assets.xcassets の AppIcon を asset catalog からコンパイル）
