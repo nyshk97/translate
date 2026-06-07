@@ -16,19 +16,22 @@ struct SettingsView: View {
 }
 
 private struct GeneralSettingsView: View {
-    // Phase 5 で SMAppService と連動させる
-    @State private var launchAtLogin = true
+    @State private var launchAtLogin = LoginItem.isEnabled
 
     var body: some View {
         Form {
             Toggle("ログイン時に起動", isOn: $launchAtLogin)
-                .disabled(true)
-            Text("※ ログイン項目連携は Phase 5 で実装します")
+                .onChange(of: launchAtLogin) { _, newValue in
+                    LoginItem.setEnabled(newValue)
+                    launchAtLogin = LoginItem.isEnabled
+                }
+            Text("メニューバーに常駐します。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .formStyle(.grouped)
         .padding()
+        .onAppear { launchAtLogin = LoginItem.isEnabled }
     }
 }
 

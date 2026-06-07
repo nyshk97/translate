@@ -279,5 +279,6 @@ final class LauncherViewModel {
         mainTask?.cancel()
         backTask?.cancel()
         tonesTask?.cancel()
+        historyTask?.cancel()
     }
 }

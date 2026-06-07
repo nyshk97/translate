@@ -14,6 +14,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Accessibility 権限の確認（未許可なら初回プロンプト。以降 capture() は非プロンプトで判定）
         SelectionCapture.ensureAccessibility()
 
+        // 初回起動時はログイン項目を ON にする（以降はユーザーのトグルを尊重）
+        let defaults = UserDefaults.standard
+        if !defaults.bool(forKey: "loginItemConfigured") {
+            LoginItem.setEnabled(true)
+            defaults.set(true, forKey: "loginItemConfigured")
+        }
+
         // グローバルショートカット登録。
         // 翻訳は onKeyUp（⌘H を離した後）に発火させる。onKeyDown だと物理 Cmd を
         // 握ったまま合成 Cmd+C を注入することになり、修飾が外れて「c」が素通りするため。
