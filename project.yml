@@ -38,8 +38,14 @@ targets:
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "85D91870B2836DB303E2224A2D8D56051F26A6FB"
         DEVELOPMENT_TEAM: "VYDUR99LAM"
+        # Debug はデバッガ接続を妨げないため Hardened Runtime を無効のまま。
         ENABLE_HARDENED_RUNTIME: NO
         SWIFT_STRICT_CONCURRENCY: complete
+      # Release だけ Hardened Runtime を有効化（notarize の必須要件）。
+      # TCC 許可は cdhash（designated requirement）基準なので、Release/Debug の構成差は許可保持に影響しない。
+      configs:
+        Release:
+          ENABLE_HARDENED_RUNTIME: YES
 
 schemes:
   Translate:

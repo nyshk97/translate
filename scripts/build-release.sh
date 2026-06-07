@@ -1,0 +1,82 @@
+#!/bin/bash
+# Translate リリース成果物ビルドスクリプト
+#
+# Release 構成でビルド → Developer ID 署名（project.yml の Manual 署名 + Hardened Runtime）
+# → notarize → staple → 配布用 ZIP（ditto）を作る。
+# 出力: build/Translate.zip と、その sha256 を標準出力に表示する。
+#
+# バージョン更新・GitHub Release・Cask 更新は release.sh が担当する。
+# このスクリプトの責務は「公証済みの配布アーティファクトを作る」まで。
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
+
+# ===== 設定 =====
+APP_NAME="Translate"
+SCHEME="Translate"
+# 既存の notarytool プロファイルを流用（同一 Apple ID / Team VYDUR99LAM のため新規作成不要）。
+# 未作成の場合: xcrun notarytool store-credentials polepole-notary --apple-id <id> --team-id VYDUR99LAM
+NOTARY_PROFILE="polepole-notary"
+
+BUILD_DIR="$REPO_ROOT/build"
+APP_PATH="$BUILD_DIR/Build/Products/Release/$APP_NAME.app"
+DIST_ZIP="$BUILD_DIR/$APP_NAME.zip"
+
+# ===== ビルド =====
+echo "🔨 Xcode プロジェクト生成 + Release ビルド..."
+xcodegen generate
+rm -rf "$BUILD_DIR"
+xcodebuild -project "$APP_NAME.xcodeproj" \
+  -scheme "$SCHEME" \
+  -configuration Release \
+  -derivedDataPath "$BUILD_DIR" \
+  -destination 'platform=macOS' \
+  clean build
+
+if [ ! -d "$APP_PATH" ]; then
+  echo "❌ ビルド失敗: $APP_PATH が見つかりません"
+  exit 1
+fi
+
+# ===== 署名 / Hardened Runtime 検証 =====
+# notarize は Hardened Runtime（runtime フラグ）が必須。乗っていなければここで止める。
+echo "🔏 署名 / Hardened Runtime を検証..."
+codesign --verify --strict --verbose=2 "$APP_PATH"
+if ! codesign -d --verbose=4 "$APP_PATH" 2>&1 | grep -q "flags=.*runtime"; then
+  echo "❌ Hardened Runtime が無効です（notarize に必須）。project.yml の ENABLE_HARDENED_RUNTIME=YES（Release）を確認してください。"
+  exit 1
+fi
+
+# ===== notarize 用 ZIP =====
+# ditto を使う。zip -r は framework 内の symlink を実体化して署名を壊すため使わない。
+echo "📦 notarize 用 ZIP を作成..."
+NOTARIZE_ZIP="$BUILD_DIR/$APP_NAME-notarize.zip"
+ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$NOTARIZE_ZIP"
+
+# ===== notarize =====
+echo "📤 notarize 送信中（数分かかることがあります）..."
+xcrun notarytool submit "$NOTARIZE_ZIP" \
+  --keychain-profile "$NOTARY_PROFILE" \
+  --wait
+
+# ===== staple =====
+echo "📎 staple 中..."
+xcrun stapler staple "$APP_PATH"
+xcrun stapler validate "$APP_PATH"
+
+# ===== Gatekeeper 評価（情報表示）=====
+echo "🛡  Gatekeeper 評価..."
+spctl --assess --type execute --verbose=4 "$APP_PATH" || true
+
+# ===== 配布用 ZIP =====
+echo "📦 配布用 ZIP を作成..."
+rm -f "$DIST_ZIP"
+ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$DIST_ZIP"
+
+SHA256="$(shasum -a 256 "$DIST_ZIP" | awk '{print $1}')"
+
+echo ""
+echo "✅ ビルド完了: $DIST_ZIP"
+echo "   sha256: $SHA256"

@@ -4,6 +4,7 @@ Generated/
 
 # ビルド成果物
 .build/
+build/
 DerivedData/
 
 # Xcode ユーザー状態

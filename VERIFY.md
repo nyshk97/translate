@@ -69,6 +69,32 @@ sqlite3 "$DB" "SELECT direction, model, datetime(created_at,'unixepoch','localti
 - `direction` は `toJapanese` / `toEnglish`、`model` は使用モデル名が入る。
 - 検索（`LIKE`）の確認: `sqlite3 "$DB" "SELECT id, source FROM history WHERE source LIKE '%<語句>%' OR output LIKE '%<語句>%' LIMIT 5;"`
 
+### リリース成果物（署名 / Hardened Runtime / notarize / Cask）
+
+リリース手順や署名・配布まわりを触ったときに確認する。
+
+- `scripts/build-release.sh`: Release ビルド → Developer ID 署名 → notarize → staple → `build/Translate.zip` を生成（公証済みアーティファクトを作るまで）。
+- `scripts/release.sh [patch|minor|major|x.y.z]`: バージョン bump → build-release.sh → commit/push → GitHub Release → `nyshk97/homebrew-tap` の `Casks/translate-mac.rb` を更新。
+
+notarize を撃たずに「署名 + Hardened Runtime」だけ検証する（push 等の副作用なし）:
+
+```sh
+xcodegen generate
+xcodebuild -project Translate.xcodeproj -scheme Translate -configuration Release \
+  -derivedDataPath build clean build 2>&1 | tail -3      # ** BUILD SUCCEEDED **
+APP="build/Build/Products/Release/Translate.app"
+codesign -d --verbose=4 "$APP" 2>&1 | grep -E "Authority=Developer ID|flags=.*runtime"
+```
+- pass: `flags=0x10000(runtime)`（Hardened Runtime 有効＝notarize の必須要件）と `Authority=Developer ID Application: ...(VYDUR99LAM)` が出る。
+- Debug は `runtime` フラグが無いのが正常（Release のみ有効化。Debug はデバッガ接続のため無効）。
+
+notarize 済みアプリの最終確認（実際のリリース後の成果物に対して）:
+
+```sh
+xcrun stapler validate "$APP"                 # "The validate action worked!"
+spctl --assess --type execute -vv "$APP"      # accepted source=Notarized Developer ID
+```
+
 ---
 
 ## 手動確認（ユーザー依頼）
