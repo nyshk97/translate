@@ -144,7 +144,6 @@ enum SelectionCapture {
     private static func captureViaCopyAction(settleFirst: Bool, _ trigger: () async -> Void) async -> String? {
         let pb = NSPasteboard.general
         let saved = snapshot(pb)
-        let savedString = saved.first?.data[.string].flatMap { String(data: $0, encoding: .utf8) }
         let preCount = pb.changeCount
 
         if settleFirst {
@@ -167,7 +166,7 @@ enum SelectionCapture {
 
         // 遅延クロバー対策（Electron 系が数百ms 後に再書き込みするため）
         if let copied, !copied.isEmpty {
-            scheduleAntiClobber(pb, saved: saved, savedString: savedString)
+            scheduleAntiClobber(pb, saved: saved, clobber: copied)
         }
 
         if let copied, !copied.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -210,13 +209,15 @@ enum SelectionCapture {
 
     // MARK: - クリップボード退避・復元
 
+    /// 復元後しばらく監視し、「取得した選択テキスト（clobber）で上書きされたときだけ」元に戻す。
+    /// ユーザーが直後に別テキストをコピーした場合（clobber と不一致）は触らない。
     private static func scheduleAntiClobber(
-        _ pb: NSPasteboard, saved: [SavedItem], savedString: String?
+        _ pb: NSPasteboard, saved: [SavedItem], clobber: String
     ) {
         Task { @MainActor in
             for _ in 0..<30 {
                 try? await Task.sleep(for: .milliseconds(40))
-                if pb.string(forType: .string) != savedString {
+                if pb.string(forType: .string) == clobber {
                     restore(pb, saved)
                 }
             }

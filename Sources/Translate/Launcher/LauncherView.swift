@@ -44,10 +44,10 @@ struct LauncherView: View {
                 .strokeBorder(.white.opacity(0.08), lineWidth: 1)
         )
         .padding(8)
-        // 手動入力時は ⌘Return で翻訳（Return は改行に使うため）
+        // Enter で翻訳（ペーストした改行は保持されるが、手動の Return キーは翻訳に割り当て）
         .background {
             Button("") { model.translate() }
-                .keyboardShortcut(.return, modifiers: .command)
+                .keyboardShortcut(.return, modifiers: [])
                 .hidden()
         }
         .onAppear { sourceFocused = true }

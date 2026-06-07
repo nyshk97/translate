@@ -55,8 +55,7 @@ final class LauncherViewModel {
         isVision = false
         if let prefill, !prefill.isEmpty {
             sourceText = prefill
-            direction = LanguageDetector.direction(for: prefill)
-            translate()
+            translate() // redetect=true で sourceText から方向判定
         } else {
             sourceText = ""
             isStreaming = false
@@ -94,9 +93,14 @@ final class LauncherViewModel {
     }
 
     /// 主翻訳。instruction を渡すとニュアンス調整付きで再翻訳。
-    func translate(instruction: String? = nil) {
+    /// redetect=true のとき入力テキストから翻訳方向を判定する（手動入力時）。
+    /// 手動トグル・ニュアンス調整では false にして現在の方向を維持する。
+    func translate(instruction: String? = nil, redetect: Bool = true) {
         let text = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+        if redetect {
+            direction = LanguageDetector.direction(for: text)
+        }
         cancelAll()
         clearOutputs()
         errorMessage = nil
@@ -109,6 +113,7 @@ final class LauncherViewModel {
             await self?.runStream(text: text, direction: dir, instruction: instruction) { chunk in
                 self?.outputText += chunk
             }
+            if Task.isCancelled { return } // キャンセル後は副作用を走らせない
             self?.isStreaming = false
             self?.recordHistory(source: text, direction: dir)
         }
@@ -128,6 +133,7 @@ final class LauncherViewModel {
         let gemini = self.gemini
         mainTask = Task { [weak self] in
             await self?.runVisionStream(data: data, mimeType: mimeType, gemini: gemini)
+            if Task.isCancelled { return }
             self?.isStreaming = false
             self?.recordVisionHistory()
         }
@@ -182,7 +188,7 @@ final class LauncherViewModel {
 
     func swapDirection() {
         direction = direction.toggled
-        translate()
+        translate(redetect: false) // 手動指定なので再判定しない
     }
 
     /// 戻し訳: 出力を逆方向にもう一度翻訳して意味を確認する。
@@ -197,6 +203,7 @@ final class LauncherViewModel {
             await self?.runStream(text: text, direction: dir, instruction: nil) { chunk in
                 self?.backTranslation += chunk
             }
+            if Task.isCancelled { return }
             self?.isBackTranslating = false
         }
     }
@@ -214,16 +221,18 @@ final class LauncherViewModel {
             await self?.runStream(text: text, direction: dir, instruction: "Use a formal, polite tone.") { chunk in
                 self?.toneFormal += chunk
             }
+            if Task.isCancelled { return }
             await self?.runStream(text: text, direction: dir, instruction: "Use a casual, friendly, conversational tone.") { chunk in
                 self?.toneCasual += chunk
             }
+            if Task.isCancelled { return }
             self?.isGeneratingTones = false
         }
     }
 
-    /// ニュアンス調整: 指示付きで主翻訳をやり直す。
+    /// ニュアンス調整: 指示付きで主翻訳をやり直す（方向は維持）。
     func applyNuance(_ instruction: String) {
-        translate(instruction: instruction.trimmingCharacters(in: .whitespacesAndNewlines))
+        translate(instruction: instruction.trimmingCharacters(in: .whitespacesAndNewlines), redetect: false)
     }
 
     func copyResult() {
