@@ -26,6 +26,10 @@ targets:
       properties:
         # メニューバー常駐（Dock アイコンを出さない accessory アプリ）
         LSUIElement: true
+        # 版数はビルド設定から流す。XcodeGen 既定の 1.0 / 1 固定を上書きし、
+        # MARKETING_VERSION / CURRENT_PROJECT_VERSION（release.sh が bump する値）を反映させる。
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.d0ne1s.translate
