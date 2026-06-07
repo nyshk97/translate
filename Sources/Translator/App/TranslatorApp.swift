@@ -17,6 +17,9 @@ struct TranslatorApp: App {
             }
             .keyboardShortcut(",")
 
+            Text("バージョン \(Bundle.main.translatorShortVersion)")
+                .foregroundStyle(.secondary)
+
             Divider()
 
             Button("Translator を終了") {
@@ -30,5 +33,11 @@ struct TranslatorApp: App {
         Settings {
             SettingsView()
         }
+    }
+}
+
+private extension Bundle {
+    var translatorShortVersion: String {
+        object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "不明"
     }
 }
