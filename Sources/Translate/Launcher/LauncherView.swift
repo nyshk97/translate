@@ -19,19 +19,25 @@ struct LauncherView: View {
 
             if showsOutput {
                 Divider().opacity(0.4)
-                outputArea
-                if !model.isStreaming && !model.outputText.isEmpty {
-                    actionRow(model: model)
+                // 入力欄は固定、以降は1つの ScrollView にまとめて高さ上限を付ける
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        outputArea
+                        if !model.isStreaming && !model.outputText.isEmpty {
+                            actionRow(model: model)
+                        }
+                        if showNuance {
+                            nuanceControls(model: model)
+                        }
+                        if showsBack {
+                            auxSection(title: "戻し訳", text: model.backTranslation, loading: model.isBackTranslating)
+                        }
+                        if showsTones {
+                            tonesSection
+                        }
+                    }
                 }
-                if showNuance {
-                    nuanceControls(model: model)
-                }
-                if showsBack {
-                    auxSection(title: "戻し訳", text: model.backTranslation, loading: model.isBackTranslating)
-                }
-                if showsTones {
-                    tonesSection
-                }
+                .frame(maxHeight: 460)
             } else if !model.historyResults.isEmpty {
                 historyList(model: model)
             }
@@ -123,14 +129,11 @@ struct LauncherView: View {
                     .foregroundStyle(.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                ScrollView {
-                    Text(model.outputText.isEmpty && model.isStreaming ? "翻訳中…" : model.outputText)
-                        .font(.system(size: 17))
-                        .foregroundStyle(model.outputText.isEmpty ? .secondary : .primary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxHeight: 220)
+                Text(model.outputText.isEmpty && model.isStreaming ? "翻訳中…" : model.outputText)
+                    .font(.system(size: 17))
+                    .foregroundStyle(model.outputText.isEmpty ? .secondary : .primary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(.horizontal, 16)
@@ -190,37 +193,24 @@ struct LauncherView: View {
         .padding(.bottom, 12)
     }
 
-    // MARK: - 戻し訳 / トーン
+    // MARK: - 戻し訳 / トーン（薄いカードで主出力と区別）
 
     private func auxSection(title: String, text: String, loading: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Divider().opacity(0.3)
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.top, 8)
-            Text(text.isEmpty && loading ? "…" : text)
-                .font(.system(size: 15))
-                .foregroundStyle(text.isEmpty ? .secondary : .primary)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        card {
+            labeledBlock(title, text: text, loading: loading)
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 12)
     }
 
     private var tonesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Divider().opacity(0.3)
-            toneCard("フォーマル", text: model.toneFormal, loading: model.isGeneratingTones && model.toneFormal.isEmpty)
-            toneCard("カジュアル", text: model.toneCasual, loading: model.isGeneratingTones && model.toneCasual.isEmpty)
+        card {
+            labeledBlock("フォーマル", text: model.toneFormal, loading: model.isGeneratingTones && model.toneFormal.isEmpty)
+            Divider().opacity(0.25)
+            labeledBlock("カジュアル", text: model.toneCasual, loading: model.isGeneratingTones && model.toneCasual.isEmpty)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
     }
 
-    private func toneCard(_ title: String, text: String, loading: Bool) -> some View {
+    /// キャプション＋本文の1ブロック。
+    private func labeledBlock(_ title: String, text: String, loading: Bool) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(size: 11, weight: .semibold))
@@ -231,6 +221,20 @@ struct LauncherView: View {
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// 薄い背景のカード。主出力と視覚的に区別する。
+    @ViewBuilder
+    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.white.opacity(0.06)))
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
     }
 
     // MARK: - 可視判定
