@@ -17,7 +17,7 @@ struct TranslatorApp: App {
             }
             .keyboardShortcut(",")
 
-            Text("バージョン \(Bundle.main.translatorShortVersion)")
+            Text("バージョン \(Bundle.main.translatorShortVersion) / \(Bundle.main.translatorBuildKind)")
                 .foregroundStyle(.secondary)
 
             Divider()
@@ -39,5 +39,13 @@ struct TranslatorApp: App {
 private extension Bundle {
     var translatorShortVersion: String {
         object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "不明"
+    }
+
+    var translatorBuildKind: String {
+        #if DEBUG
+        return "ローカル版"
+        #else
+        return bundleURL.path == "/Applications/Translator.app" ? "リリース版" : "ローカル版"
+        #endif
     }
 }
