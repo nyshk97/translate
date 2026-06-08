@@ -9,9 +9,9 @@ enum TranslationDirection: Sendable {
     var systemPrompt: String {
         switch self {
         case .toEnglish:
-            return "Translate the Japanese text into natural English. Output only the translation, with no notes or explanations."
+            return "Translate Japanese into natural, idiomatic English. Preserve the meaning, tone, names, numbers, URLs, and formatting. Do not translate word-for-word; rewrite awkward literal phrasing. Output only the translation."
         case .toJapanese:
-            return "Translate the text into natural Japanese. Output only the translation, with no notes or explanations."
+            return "Translate the text into natural, idiomatic Japanese. Preserve the meaning, tone, names, numbers, URLs, and formatting. Do not translate word-for-word; rewrite awkward literal phrasing. Use Japanese that reads as if originally written in Japanese. Output only the translation."
         }
     }
 
