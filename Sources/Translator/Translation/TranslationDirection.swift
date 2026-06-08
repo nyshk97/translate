@@ -11,7 +11,7 @@ enum TranslationDirection: Sendable {
         case .toEnglish:
             return "Translate Japanese into natural, idiomatic English. Preserve the meaning, tone, names, numbers, URLs, and formatting. Do not translate word-for-word; rewrite awkward literal phrasing. Output only the translation."
         case .toJapanese:
-            return "Translate the text into natural, idiomatic Japanese. Preserve the meaning, tone, names, numbers, URLs, and formatting. Do not translate word-for-word; rewrite awkward literal phrasing. Use Japanese that reads as if originally written in Japanese. Output only the translation."
+            return "Translate the text into natural, idiomatic Japanese. Preserve the meaning, tone, names, numbers, URLs, and formatting. Do not translate word-for-word; rewrite awkward literal phrasing. Use Japanese that reads as if originally written in Japanese. Prefer common Japanese phrasing over stiff dictionary wording, e.g. translate \"too literal\" as \"直訳っぽい\" when natural. Output only the translation."
         }
     }
 
