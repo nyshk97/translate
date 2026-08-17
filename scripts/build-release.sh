@@ -7,8 +7,19 @@
 #
 # バージョン更新・GitHub Release・Cask 更新は release.sh が担当する。
 # このスクリプトの責務は「公証済みの配布アーティファクトを作る」まで。
+#
+# --skip-notarize: 署名検証まで実行して終了する（notarize / staple / 配布 ZIP をスキップ）。
+#     署名まわりの変更を、リリース本番より前に自走検証する用。daw/scripts/build.sh と同じフラグ。
 
 set -euo pipefail
+
+SKIP_NOTARIZE=0
+for arg in "$@"; do
+  case "$arg" in
+    --skip-notarize) SKIP_NOTARIZE=1 ;;
+    *) echo "不明な引数: ${arg}（使えるのは --skip-notarize のみ）" >&2; exit 2 ;;
+  esac
+done
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -16,8 +27,16 @@ cd "$REPO_ROOT"
 # ===== 設定 =====
 APP_NAME="Translator"
 SCHEME="Translator"
-# Developer ID Application（Team VYDUR99LAM）の安定署名 ID。project.yml の CODE_SIGN_IDENTITY と一致。
-SIGN_IDENTITY="85D91870B2836DB303E2224A2D8D56051F26A6FB"
+TEAM_ID="VYDUR99LAM"
+# 署名 ID のハッシュはマシンごとに異なるため直書きしない。Team ID で絞って keychain から解決する
+# （keychain に他 Team の Developer ID があっても誤爆しない）。
+SIGN_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+  | awk -F'"' "/Developer ID Application.*\\($TEAM_ID\\)/ {print \$2; exit}")"
+if [ -z "$SIGN_IDENTITY" ]; then
+  echo "❌ Developer ID Application（Team ${TEAM_ID}）の証明書が keychain にありません。" >&2
+  echo "   Xcode → Settings → Accounts → Manage Certificates から取得してください。" >&2
+  exit 1
+fi
 # notarytool の keychain プロファイル（自作 Mac アプリ全体で共通）。中身は App Store Connect の API キー。
 # 未作成の場合: xcrun notarytool store-credentials nyshk97-notary \
 #   --key ~/Library/CloudStorage/Dropbox/secrets/AuthKey_M4FG2B8JFX.p8 \
@@ -68,6 +87,14 @@ if [[ "$SIGN_INFO" != *"Timestamp="* ]]; then
 fi
 if [[ "$SIGN_INFO" == *"get-task-allow"* ]]; then
   echo "❌ get-task-allow entitlement が残存（配布ビルドでは禁止）。"; echo "$SIGN_INFO"; exit 1
+fi
+
+if [ "$SKIP_NOTARIZE" = 1 ]; then
+  echo ""
+  echo "✅ --skip-notarize: 署名検証まで完了（notarize / staple / 配布 ZIP はスキップ）"
+  echo "   app: $APP_PATH"
+  echo "   署名 ID: $SIGN_IDENTITY"
+  exit 0
 fi
 
 # ===== notarize 用 ZIP =====

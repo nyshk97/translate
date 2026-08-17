@@ -38,7 +38,7 @@ case "$BUMP" in
   minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
   patch) PATCH=$((PATCH + 1)) ;;
   [0-9]*.[0-9]*.[0-9]*) IFS='.' read -r MAJOR MINOR PATCH <<< "$BUMP" ;;
-  *) echo "不正なバージョン指定: $BUMP（patch|minor|major|x.y.z）"; exit 1 ;;
+  *) echo "不正なバージョン指定: ${BUMP}（patch|minor|major|x.y.z）"; exit 1 ;;
 esac
 NEW_VERSION="$MAJOR.$MINOR.$PATCH"
 BUILD_NUMBER="$(date +%Y%m%d%H%M%S)"
