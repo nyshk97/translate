@@ -18,9 +18,11 @@ APP_NAME="Translator"
 SCHEME="Translator"
 # Developer ID Application（Team VYDUR99LAM）の安定署名 ID。project.yml の CODE_SIGN_IDENTITY と一致。
 SIGN_IDENTITY="85D91870B2836DB303E2224A2D8D56051F26A6FB"
-# 既存の notarytool プロファイルを流用（同一 Apple ID / Team VYDUR99LAM のため新規作成不要）。
-# 未作成の場合: xcrun notarytool store-credentials polepole-notary --apple-id <id> --team-id VYDUR99LAM
-NOTARY_PROFILE="polepole-notary"
+# notarytool の keychain プロファイル（自作 Mac アプリ全体で共通）。中身は App Store Connect の API キー。
+# 未作成の場合: xcrun notarytool store-credentials nyshk97-notary \
+#   --key ~/Library/CloudStorage/Dropbox/secrets/AuthKey_M4FG2B8JFX.p8 \
+#   --key-id M4FG2B8JFX --issuer 024fc873-10f9-49a4-8d6f-20fb5c7bd522
+NOTARY_PROFILE="${NOTARY_PROFILE:-nyshk97-notary}"
 
 BUILD_DIR="$REPO_ROOT/build"
 APP_PATH="$BUILD_DIR/Build/Products/Release/$APP_NAME.app"
