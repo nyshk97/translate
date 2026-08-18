@@ -19,7 +19,7 @@ struct TranslationService: Sendable {
         }
     }
 
-    static let modelName = "llama-3.3-70b-versatile"
+    static let modelName = "openai/gpt-oss-120b"
 
     private let endpoint = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
     private let modelsURL = URL(string: "https://api.groq.com/openai/v1/models")!
@@ -60,6 +60,9 @@ struct TranslationService: Sendable {
                         ],
                         "stream": true,
                         "temperature": 0.3,
+                        // reasoning は別フィールドに出るので content には混ざらないが、
+                        // low に絞らないと reasoning 生成分だけ最初の content が遅れる（実測 0.8s → 0.3s）
+                        "reasoning_effort": "low",
                     ]
                     req.httpBody = try JSONSerialization.data(withJSONObject: body)
 

@@ -18,7 +18,7 @@
 - 署名: Developer ID（Team `VYDUR99LAM`）の安定 ID で Manual 署名。リビルドで cdhash が変わらず TCC（Accessibility / 画面収録）許可が保持される。
 - API キー: Keychain（service `com.d0ne1s.translate` / account `groq-api-key`・`gemini-api-key`）
 - 履歴 DB: `~/Library/Application Support/com.d0ne1s.translate/history.sqlite`
-- モデル: テキスト=`llama-3.3-70b-versatile`（Groq）/ Vision=`gemini-2.5-flash`（Gemini）
+- モデル: テキスト=`openai/gpt-oss-120b`（Groq・`reasoning_effort: low`）/ Vision=`gemini-2.5-flash`（Gemini）
 - ショートカット既定: ⌘H=翻訳 / ⌘⇧H=スクショ翻訳
 
 ---
