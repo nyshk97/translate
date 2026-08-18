@@ -59,6 +59,12 @@
 - 要約・詳しい解説など、品質が要る重い処理だけ高性能モデルに振り分ける。
 - プロンプトは多言語・多条件の分岐なしの **短い固定文** にする。入力トークンを最小化して、プレフィルと TTFT を縮める。
 
+### Groq モデル差し替えの知見
+
+- **Groq はモデルを予告なく廃止する**（llama-3.3-70b-versatile で実例）。エラー 404 `model_not_found` が出たら `/v1/models` で現行一覧を確認し、候補を**実プロンプトで TTFT・出力を実測**してから差し替える（`scripts/bench-models.py`）。
+- **reasoning モデルの罠**: `openai/gpt-oss-*` は reasoning が SSE の別フィールド（`delta.reasoning`）に出るので `delta.content` のみ読む既存クライアントと互換だが、**`reasoning_effort: "low"` を付けないと reasoning 生成分だけ最初の content が遅れる**（実測 0.8〜2.5s → 0.3s）。`qwen/qwen3.*` はデフォルトで **`<think>` が content に混入**するため、使うなら `reasoning_effort: "none"` 必須。
+- Groq API は Python urllib のデフォルト User-Agent を Cloudflare が 403（error 1010）で弾く。スクリプトから叩くときは `User-Agent: curl/8.x` 等を付ける（bench-models.py は対応済み）。
+
 ## 翻訳方向と言語判定
 
 - 入力が日本語 → 英語へ翻訳する。

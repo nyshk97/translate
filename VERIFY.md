@@ -54,6 +54,18 @@ codesign -dr - .build/Build/Products/Debug/Translator.app 2>&1 | grep designated
 - 2 回クリーンリビルドして上記が一致すれば、リビルドで Accessibility 許可が飛ばないことの担保になる。
 - 署名 ID を変更したときは古い TCC エントリを掃除する: `tccutil reset Accessibility com.d0ne1s.translate`
 
+### モデル差し替え（Groq）
+
+テキスト翻訳のモデルを変更・廃止対応したときに確認する。
+
+```sh
+KEY=$(security find-generic-password -s "com.d0ne1s.translate" -a "groq-api-key" -w)
+curl -s https://api.groq.com/openai/v1/models -H "Authorization: Bearer $KEY" | jq -r '.data[].id'  # 現行一覧
+python3 scripts/bench-models.py <model-id>   # 実プロンプトで TTFT・出力を実測（省略時は現行モデル）
+```
+- pass: 採用モデルが一覧に存在し、`ttf_content` が 0.5s 以下、出力に `<think>` 等の reasoning が混入していない、両方向とも自然な訳文。
+- reasoning モデルの注意（gpt-oss は `reasoning_effort: low` 必須 / qwen は `<think>` 混入）は CLAUDE.md「Groq モデル差し替えの知見」を参照。
+
 ### 履歴 DB（SQLite）
 
 履歴の保存・スキーマ・検索まわりを触ったときに確認する。
