@@ -1,5 +1,20 @@
 import SwiftUI
 
+/// Obsidian テーマ: 不透明ダーク・高コントラスト・入力は薄く出力は強く。
+enum Theme {
+    static let panel = Color(red: 0x15/255, green: 0x16/255, blue: 0x1b/255)
+    static let header = Color(red: 0x1b/255, green: 0x1c/255, blue: 0x22/255)
+    static let chip = Color(red: 0x2a/255, green: 0x2b/255, blue: 0x33/255)
+    static let button = Color(red: 0x22/255, green: 0x23/255, blue: 0x2b/255)
+    static let buttonBorder = Color(red: 0x2d/255, green: 0x2e/255, blue: 0x38/255)
+    static let text = Color(red: 0xf2/255, green: 0xf2/255, blue: 0xf5/255)
+    static let muted = Color(red: 0x9a/255, green: 0x9c/255, blue: 0xa8/255)
+    static let chipText = Color(red: 0xc9/255, green: 0xca/255, blue: 0xd4/255)
+    static let buttonText = Color(red: 0xd5/255, green: 0xd6/255, blue: 0xdf/255)
+    static let accent = Color(red: 0x7c/255, green: 0xc4/255, blue: 0xff/255)
+    static let radius: CGFloat = 18
+}
+
 struct LauncherView: View {
     let model: LauncherViewModel
     @FocusState private var sourceFocused: Bool
@@ -18,7 +33,7 @@ struct LauncherView: View {
             inputRow(model: model)
 
             if showsOutput {
-                Divider().opacity(0.4)
+                StreamingBar(active: model.isStreaming)
                 // 入力欄は固定、以降は1つの ScrollView にまとめて高さ上限を付ける
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
@@ -44,11 +59,13 @@ struct LauncherView: View {
         }
         .frame(width: 640, alignment: .leading)
         .onChange(of: model.sourceText) { _, _ in model.refreshHistory() }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .foregroundStyle(Theme.text)
+        .background(Theme.panel, in: RoundedRectangle(cornerRadius: Theme.radius))
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(.white.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: Theme.radius)
+                .strokeBorder(.white.opacity(0.06), lineWidth: 1)
         )
+        .colorScheme(.dark)
         .padding(8)
         // Enter で翻訳（ペーストした改行は保持されるが、手動の Return キーは翻訳に割り当て）
         .background {
@@ -73,33 +90,40 @@ struct LauncherView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(.white.opacity(0.1)))
                 Text("画像を翻訳")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.muted)
                 Spacer()
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 18)
             .padding(.vertical, 12)
+            .background(Theme.header)
         } else {
             HStack(alignment: .top, spacing: 8) {
                 TextField("翻訳したいテキスト…", text: Binding(get: { model.sourceText }, set: { model.sourceText = $0 }), axis: .vertical)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 18))
+                    // 出力が出ている間は「入力は控えめ・出力が主役」に切り替える
+                    .font(.system(size: showsOutput ? 12.5 : 16))
+                    .foregroundStyle(showsOutput ? Theme.muted : Theme.text)
+                    .lineSpacing(3)
                     .lineLimit(1...6)
                     .focused($sourceFocused)
 
                 Button(action: { model.swapDirection() }) {
                     Text(model.direction.label)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .monospaced()
+                        .foregroundStyle(Theme.chipText)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(.white.opacity(0.08), in: Capsule())
+                        .background(Theme.chip, in: RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
                 .help("翻訳方向を反転")
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 18)
+            .padding(.top, 14)
+            .padding(.bottom, 12)
+            .background(showsOutput ? Theme.header : Theme.panel)
         }
     }
 
@@ -107,7 +131,7 @@ struct LauncherView: View {
 
     private func historyList(model: LauncherViewModel) -> some View {
         VStack(spacing: 0) {
-            Divider().opacity(0.3)
+            Rectangle().fill(.white.opacity(0.06)).frame(height: 1)
             ScrollView {
                 LazyVStack(spacing: 0) {
                     ForEach(model.historyResults) { entry in
@@ -129,15 +153,18 @@ struct LauncherView: View {
                     .foregroundStyle(.red)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                Text(model.outputText.isEmpty && model.isStreaming ? "翻訳中…" : model.outputText)
-                    .font(.system(size: 17))
-                    .foregroundStyle(model.outputText.isEmpty ? .secondary : .primary)
+                // ストリーミング中は末尾にアクセント色のカーソルをインラインで付ける（行末に追従させるため Text 連結）
+                (Text(model.outputText) + Text(model.isStreaming ? "▍" : "").foregroundColor(Theme.accent))
+                    .font(.system(size: 14, weight: .medium))
+                    .lineSpacing(5)
+                    .foregroundStyle(Theme.text)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
     }
 
     // MARK: - アクション行
@@ -151,24 +178,36 @@ struct LauncherView: View {
                 actionButton("調整", systemImage: "wand.and.stars", active: showNuance) { showNuance.toggle() }
             }
             Spacer()
-            Button(model.didCopy ? "コピー済み" : "コピー（⌘C）") { model.copyResult() }
-                .buttonStyle(.plain)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .keyboardShortcut("c", modifiers: .command)
-                .disabled(model.outputText.isEmpty)
+            Button(action: { model.copyResult() }) {
+                HStack(spacing: 5) {
+                    Text(model.didCopy ? "コピー済み" : "コピー")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("⌘C")
+                        .font(.system(size: 10, design: .monospaced))
+                        .opacity(0.6)
+                }
+                .foregroundStyle(model.didCopy ? Theme.muted : Theme.accent)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("c", modifiers: .command)
+            .disabled(model.outputText.isEmpty)
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 10)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
     }
 
     private func actionButton(_ title: String, systemImage: String, active: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .font(.system(size: 12, weight: .medium))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(active ? .white.opacity(0.16) : .white.opacity(0.06), in: Capsule())
+                .foregroundStyle(active ? Theme.text : Theme.buttonText)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(active ? Theme.chip : Theme.button, in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.buttonBorder, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -179,9 +218,16 @@ struct LauncherView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 ForEach(nuancePresets, id: \.label) { preset in
-                    Button(preset.label) { model.applyNuance(preset.instruction) }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                    Button(action: { model.applyNuance(preset.instruction) }) {
+                        Text(preset.label)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Theme.buttonText)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Theme.button, in: Capsule())
+                            .overlay(Capsule().strokeBorder(Theme.buttonBorder, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             TextField("指示を入力（例: もっと簡潔に）", text: Binding(get: { model.nuanceInstruction }, set: { model.nuanceInstruction = $0 }))
@@ -213,11 +259,13 @@ struct LauncherView: View {
     private func labeledBlock(_ title: String, text: String, loading: Bool) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 10.5, weight: .semibold))
+                .tracking(0.5)
+                .foregroundStyle(Theme.muted)
             Text(text.isEmpty && loading ? "…" : text)
-                .font(.system(size: 15))
-                .foregroundStyle(text.isEmpty ? .secondary : .primary)
+                .font(.system(size: 13.5))
+                .lineSpacing(4)
+                .foregroundStyle(text.isEmpty ? Theme.muted : Theme.text)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -231,8 +279,8 @@ struct LauncherView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.white.opacity(0.06)))
+        .background(Theme.header, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.buttonBorder, lineWidth: 1))
         .padding(.horizontal, 12)
         .padding(.bottom, 12)
     }
@@ -262,26 +310,54 @@ private struct HistoryRow: View {
                 Text(entry.directionValue.label)
                     .font(.system(size: 9, weight: .medium))
                     .monospaced()
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.muted)
                     .frame(width: 34, alignment: .leading)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(entry.source)
-                        .font(.system(size: 13))
-                        .lineLimit(1)
                     Text(entry.output)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Theme.text)
+                        .lineLimit(1)
+                    Text(entry.source)
                         .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.muted)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 18)
             .padding(.vertical, 7)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(hovering ? Color.white.opacity(0.08) : .clear)
+            .background(hovering ? Theme.header : .clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+    }
+}
+
+/// 入力と出力の境界線。ストリーミング中は光が流れる。
+private struct StreamingBar: View {
+    let active: Bool
+    @State private var phase: CGFloat = -1
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(.white.opacity(0.06))
+            if active {
+                GeometryReader { geo in
+                    LinearGradient(colors: [.clear, Theme.accent, .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: geo.size.width * 0.6)
+                        .offset(x: phase * geo.size.width)
+                        .onAppear {
+                            phase = -0.6
+                            withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) {
+                                phase = 1
+                            }
+                        }
+                }
+            }
+        }
+        .frame(height: 2)
+        .clipped()
     }
 }

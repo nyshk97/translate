@@ -53,6 +53,13 @@ final class LauncherController {
         model.warmUp()
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
+        // フォーカス時の全選択（青いハイライト）を解除してカーソルを末尾へ。選択色も控えめにする。
+        DispatchQueue.main.async {
+            guard let editor = panel.fieldEditor(false, for: nil) as? NSTextView else { return }
+            editor.selectedTextAttributes = [.backgroundColor: NSColor.white.withAlphaComponent(0.18)]
+            editor.insertionPointColor = NSColor(red: 0x7c/255, green: 0xc4/255, blue: 0xff/255, alpha: 1)
+            editor.setSelectedRange(NSRange(location: (editor.string as NSString).length, length: 0))
+        }
     }
 
     private func makePanel() -> LauncherPanel {
