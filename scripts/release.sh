@@ -93,7 +93,7 @@ cask "$CASK_TOKEN" do
   desc "自分専用の macOS ネイティブ翻訳ツール"
   homepage "https://github.com/$GITHUB_REPO"
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "$APP_NAME.app"
 
