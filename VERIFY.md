@@ -81,24 +81,42 @@ sqlite3 "$DB" "SELECT direction, model, datetime(created_at,'unixepoch','localti
 - `direction` は `toJapanese` / `toEnglish`、`model` は使用モデル名が入る。
 - 検索（`LIKE`）の確認: `sqlite3 "$DB" "SELECT id, source FROM history WHERE source LIKE '%<語句>%' OR output LIKE '%<語句>%' LIMIT 5;"`
 
-### リリース成果物（署名 / Hardened Runtime / notarize / Cask）
+### リリース成果物（署名 / Hardened Runtime / notarize / Sparkle / Cask）
 
 リリース手順や署名・配布まわりを触ったときに確認する。
 
-- `scripts/build-release.sh`: Release ビルド → Developer ID 署名 → notarize → staple → `build/Translator.zip` を生成（公証済みアーティファクトを作るまで）。
-- `scripts/release.sh [patch|minor|major|x.y.z]`: バージョン bump → build-release.sh → commit/push → GitHub Release → `nyshk97/homebrew-tap` の `Casks/translate-mac.rb` を更新。
+- `scripts/build-release.sh`: Release ビルド → Sparkle.framework を inside-out に Developer ID 再署名 → notarize → staple → `build/Translator.zip` を生成（公証済みアーティファクトを作るまで）。
+- `scripts/release.sh [patch|minor|major|x.y.z]`（= `mise run release`）: CHANGELOG の `[Unreleased]` 確認 → bump + CHANGELOG 切り出しを commit → build-release.sh → EdDSA 署名 + `build/appcast.xml` → push → GitHub Release（ZIP + appcast、ノートは CHANGELOG）→ `nyshk97/homebrew-tap` の `Casks/translate-mac.rb` を更新。**Claude Code のセッションから叩いてよい**（画面ロック中だけ事前チェックで止まる。push 前に失敗したら bump commit は trap で巻き戻る）。
 
-notarize を撃たずに「署名 + Hardened Runtime」だけ検証する（push 等の副作用なし）:
+**リリースノートは `docs/CHANGELOG.md` の `[Unreleased]` から作る**（GitHub Release の本文と Sparkle の更新ダイアログの両方）。叩く前にセッションが `git log <前回タグ>..HEAD` を読んで `[Unreleased]` を埋めて commit する（書き方は CHANGELOG 冒頭）。空のまま叩くと事前チェックで止まる（`python3 scripts/changelog.py check` で単体確認できる）。
+
+notarize を撃たずに「署名 + Hardened Runtime + Sparkle の再署名 + feed URL」を検証する（push 等の副作用なし）:
 
 ```sh
-xcodegen generate
-xcodebuild -project Translator.xcodeproj -scheme Translator -configuration Release \
-  -derivedDataPath build clean build 2>&1 | tail -3      # ** BUILD SUCCEEDED **
-APP="build/Build/Products/Release/Translator.app"
-codesign -d --verbose=4 "$APP" 2>&1 | grep -E "Authority=Developer ID|flags=.*runtime"
+bash scripts/build-release.sh --skip-notarize    # 末尾に ✅ --skip-notarize: 署名検証まで完了
 ```
-- pass: `flags=0x10000(runtime)`（Hardened Runtime 有効＝notarize の必須要件）と `Authority=Developer ID Application: ...(VYDUR99LAM)` が出る。
+- 中で `codesign --verify --deep --strict`、Sparkle 構成物（Downloader.xpc / Installer.xpc / Updater.app / Autoupdate / framework）の adhoc 残存と secure timestamp、成果物 plist の `SUFeedURL` = 配信先、`SUPublicEDKey` の有無を見ている。
 - Debug は `runtime` フラグが無いのが正常（Release のみ有効化。Debug はデバッガ接続のため無効）。
+
+Sparkle はローカル版（Debug）では動かない（コードの `#if !DEBUG` と、plist の feed が Release 構成限定の二重防御）:
+
+```sh
+/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' .build/Build/Products/Debug/Translator.app/Contents/Info.plist     # → 空文字
+/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' build/Build/Products/Release/Translator.app/Contents/Info.plist    # → feed URL
+```
+- ローカル版のメニューでは「アップデートを確認…」が無効化されている。
+
+Release ビルドが Sparkle 込みで起動するか（常用版と bundle id が同じなので一旦止める）:
+
+```sh
+killall Translator; open build/Build/Products/Release/Translator.app; sleep 4
+pgrep -fl 'Release/Translator.app'        # 生きていれば OK
+killall Translator; open /Applications/Translator.app
+```
+
+リリース後: `gh release view v<ver> --repo nyshk97/translate --json body` が CHANGELOG の該当セクション、
+`curl -sL https://github.com/nyshk97/translate/releases/latest/download/appcast.xml` の `<description>` に同じ内容。
+旧版（Sparkle 未搭載の 0.1.10 以前）には更新が届かないので、その 1 回だけ `brew upgrade translate-mac` で入れる。
 
 notarize 済みアプリの最終確認（実際のリリース後の成果物に対して）:
 

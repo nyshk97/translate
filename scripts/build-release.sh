@@ -69,13 +69,49 @@ fi
 #   - secure timestamp が無い（"Signed Time" のみ。notarize は Apple TSA の timestamp が必須 → Invalid）
 # そこで Developer ID + Hardened Runtime + secure timestamp で明示的に再署名し、
 # entitlements を付けない（= 空）ことで get-task-allow を除去する。このアプリは entitlement 不要。
-# 埋め込み framework は無い（KeyboardShortcuts は静的リンク）ので単一バイナリの再署名で足りる。
+# 埋め込み framework は Sparkle だけ（KeyboardShortcuts は静的リンク）。xcodebuild は framework の
+# 外側しか署名し直さず、中の XPC・Updater.app・Autoupdate が adhoc のまま残って notarize が
+# Invalid になるので、inside-out に署名し直してから本体の seal を張り直す。
 echo "🔏 配布用に再署名（Hardened Runtime + secure timestamp、get-task-allow 除去）..."
+SPARKLE="$APP_PATH/Contents/Frameworks/Sparkle.framework"
+SPARKLE_B="$SPARKLE/Versions/B"
+SPARKLE_NESTED=(
+  "$SPARKLE_B/XPCServices/Downloader.xpc"
+  "$SPARKLE_B/XPCServices/Installer.xpc"
+  "$SPARKLE_B/Updater.app"
+  "$SPARKLE_B/Autoupdate"
+  "$SPARKLE"
+)
+for nested in "${SPARKLE_NESTED[@]}"; do
+  [ -e "$nested" ] || { echo "❌ Sparkle の構成物が見つかりません: $nested"; exit 1; }
+  # Sparkle の XPC はエンタイトルメントを持つため --preserve-metadata=entitlements で維持する
+  codesign --force --options runtime --timestamp \
+    --preserve-metadata=entitlements --sign "$SIGN_IDENTITY" "$nested"
+done
 codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_PATH"
 
 # ===== 署名検証（notarize 前提条件を全部チェック）=====
 echo "🔏 署名を検証..."
-codesign --verify --strict --verbose=2 "$APP_PATH"
+codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+for nested in "${SPARKLE_NESTED[@]}"; do
+  nested_info="$(codesign -dvv "$nested" 2>&1)"
+  case "$nested_info" in
+    *"Signature=adhoc"*) echo "❌ adhoc 署名が残存: $nested"; exit 1 ;;
+  esac
+  if [[ "$nested_info" != *"Timestamp="* ]]; then
+    echo "❌ secure timestamp が無い: $nested"; exit 1
+  fi
+done
+# Sparkle の配信先は project.yml（アプリが見に行く先）と release.sh（appcast を置く先）の
+# 2 箇所にある。成果物の plist を読んで突き合わせ、乖離したビルドを配布しない。
+FEED_URL="${FEED_URL:-https://github.com/nyshk97/translate/releases/latest/download/appcast.xml}"
+PLIST="$APP_PATH/Contents/Info.plist"
+built_feed="$(/usr/libexec/PlistBuddy -c "Print :SUFeedURL" "$PLIST" 2>/dev/null || true)"
+if [ "$built_feed" != "$FEED_URL" ]; then
+  echo "❌ SUFeedURL が配信先と一致しません: plist='${built_feed}' 期待='${FEED_URL}'"; exit 1
+fi
+built_key="$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$PLIST" 2>/dev/null || true)"
+[ -n "$built_key" ] || { echo "❌ SUPublicEDKey が未設定です"; exit 1; }
 # codesign 出力は一旦変数に取ってから判定する（`codesign | grep -q` 直結は grep -q の
 # パイプ早期終了で codesign が SIGPIPE 終了し、set -o pipefail 下で誤検知するため）。
 SIGN_INFO="$(codesign -dvvv --entitlements - "$APP_PATH" 2>&1)"

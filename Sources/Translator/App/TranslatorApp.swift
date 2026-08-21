@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct TranslatorApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @ObservedObject private var updater = Updater.shared
 
     var body: some Scene {
         // メニューバー常駐アイコン（クリックでメニュー）
@@ -16,6 +17,11 @@ struct TranslatorApp: App {
                 Text("設定…")
             }
             .keyboardShortcut(",")
+
+            Button("アップデートを確認…") {
+                Updater.shared.checkForUpdates()
+            }
+            .disabled(!Updater.isSupported || !updater.canCheckForUpdates)
 
             Text("バージョン \(Bundle.main.translatorShortVersion) / \(Bundle.main.translatorBuildKind)")
                 .foregroundStyle(.secondary)

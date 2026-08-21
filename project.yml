@@ -11,6 +11,9 @@ packages:
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts
     from: "1.10.0"
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: "2.9.6"
 
 targets:
   Translator:
@@ -20,6 +23,7 @@ targets:
       - path: Sources
     dependencies:
       - package: KeyboardShortcuts
+      - package: Sparkle
       - sdk: libsqlite3.tbd
     info:
       path: Generated/Info.plist
@@ -32,6 +36,14 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         # アプリアイコン（Assets.xcassets の AppIcon）。actool が注入する値を明示。
         CFBundleIconName: AppIcon
+        # Sparkle（アプリ内アップデート）。アップデータの起動は #if !DEBUG でガードし、
+        # feed URL も Release 構成にだけ入れる二重防御（Debug では TRANSLATOR_SU_FEED_URL が
+        # 未定義で空文字になる。Debug に feed を持たせると更新チェックで常用版に置き換わる）。
+        SUFeedURL: "$(TRANSLATOR_SU_FEED_URL)"
+        # keychain account "translate" の秘密鍵と対（バックアップは Dropbox/secrets/sparkle-ed25519-translate-private.key）
+        SUPublicEDKey: yAg4FkLu1NHQ/LXYc0zwfD5C4hqyPB/EvM96kZFHlWc=
+        # 常駐アプリなので自動チェック ON（起動時 + 24h ごと）。同意ダイアログは出さない
+        SUEnableAutomaticChecks: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.d0ne1s.translate
@@ -56,6 +68,7 @@ targets:
       configs:
         Release:
           ENABLE_HARDENED_RUNTIME: YES
+          TRANSLATOR_SU_FEED_URL: https://github.com/nyshk97/translate/releases/latest/download/appcast.xml
 
 schemes:
   Translator:
