@@ -44,6 +44,8 @@ Translator の更新履歴。形式は [Keep a Changelog](https://keepachangelog
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-08-21
+
 ### ✨ Added
 - アプリ内アップデート（起動時と 24 時間ごとの自動確認、メニューの「アップデートを確認…」）
 
